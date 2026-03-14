@@ -1,19 +1,22 @@
 import { randomUUID } from 'expo-crypto';
+import { BRIGHT_STARS, CONSTELLATION_LINES, normalizeRA } from './starData';
 import * as SQLite from 'expo-sqlite';
 import { StatusBar } from 'expo-status-bar';
 import {
+  Fragment,
   useDeferredValue,
   useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from 'react';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import {
   Alert,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -21,6 +24,49 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { SvgXml } from 'react-native-svg';
+
+const ORBIT_LOGO_SVG = `<svg width="200" height="200" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="planet" cx="34%" cy="29%" r="74%">
+      <stop offset="0%"   stop-color="#8878d8"/>
+      <stop offset="22%"  stop-color="#6858b8"/>
+      <stop offset="60%"  stop-color="#3a2d80"/>
+      <stop offset="100%" stop-color="#120c2a"/>
+    </radialGradient>
+    <linearGradient id="ringFront" gradientUnits="userSpaceOnUse" x1="6" y1="60" x2="114" y2="60">
+      <stop offset="0%"   stop-color="#5a48b8" stop-opacity="0"/>
+      <stop offset="14%"  stop-color="#a090f8" stop-opacity="1"/>
+      <stop offset="50%"  stop-color="#ccc0ff"/>
+      <stop offset="86%"  stop-color="#a090f8" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#5a48b8" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="ringBack" gradientUnits="userSpaceOnUse" x1="6" y1="60" x2="114" y2="60">
+      <stop offset="0%"   stop-color="#2e2060" stop-opacity="0"/>
+      <stop offset="14%"  stop-color="#5048a0" stop-opacity="0.65"/>
+      <stop offset="50%"  stop-color="#6858b8" stop-opacity="0.6"/>
+      <stop offset="86%"  stop-color="#5048a0" stop-opacity="0.65"/>
+      <stop offset="100%" stop-color="#2e2060" stop-opacity="0"/>
+    </linearGradient>
+    <clipPath id="top"><rect x="0" y="0"  width="120" height="60"/></clipPath>
+    <clipPath id="bot"><rect x="0" y="60" width="120" height="60"/></clipPath>
+    <clipPath id="planetClip"><circle cx="60" cy="60" r="27"/></clipPath>
+  </defs>
+  <ellipse cx="60" cy="60" rx="56" ry="14" transform="rotate(-22 60 60)" fill="none" stroke="url(#ringBack)" stroke-width="5" clip-path="url(#top)"/>
+  <ellipse cx="60" cy="60" rx="44" ry="11" transform="rotate(-22 60 60)" fill="none" stroke="url(#ringBack)" stroke-width="7.5" clip-path="url(#top)" opacity="0.9"/>
+  <circle cx="60" cy="60" r="27" fill="url(#planet)"/>
+  <g clip-path="url(#planetClip)" fill="none" stroke="#000000" transform="rotate(-22 60 60)">
+    <path d="M 33 47 Q 60 44 87 47" stroke-width="1.8" opacity="0.13"/>
+    <path d="M 34 53 Q 60 51 86 53" stroke-width="2.2" opacity="0.16"/>
+    <path d="M 33 60 Q 60 60 87 60" stroke-width="1.5" opacity="0.12"/>
+    <path d="M 34 67 Q 60 69 86 67" stroke-width="2.2" opacity="0.16"/>
+    <path d="M 33 73 Q 60 76 87 73" stroke-width="1.8" opacity="0.13"/>
+  </g>
+  <circle cx="60" cy="60" r="27" fill="none" stroke="#9080f0" stroke-width="1.2" opacity="0.3"/>
+  <ellipse cx="60" cy="60" rx="44" ry="11" transform="rotate(-22 60 60)" fill="none" stroke="url(#ringFront)" stroke-width="7.5" clip-path="url(#bot)"/>
+  <ellipse cx="60" cy="60" rx="56" ry="14" transform="rotate(-22 60 60)" fill="none" stroke="url(#ringFront)" stroke-width="5" clip-path="url(#bot)"/>
+</svg>`;
 
 const RELATIONSHIPS = ['close', 'acquaintance', 'just met'] as const;
 const NOTE_TYPES = ['free', 'coffee', 'call', 'message', 'event', 'intro'] as const;
@@ -80,7 +126,7 @@ type PersonDraft = {
   metDate: string;
   relationship: Relationship;
   followUpDate: string;
-  tags: string;
+  tags: string[];
 };
 
 type NoteDraft = {
@@ -102,7 +148,7 @@ const emptyPersonDraft: PersonDraft = {
   metDate: '',
   relationship: 'acquaintance',
   followUpDate: '',
-  tags: '',
+  tags: [],
 };
 
 const emptyNoteDraft: NoteDraft = {
@@ -234,10 +280,7 @@ async function insertPerson(draft: PersonDraft) {
   const db = await getDatabase();
   const personId = randomUUID();
   const now = nowIso();
-  const labels = draft.tags
-    .split(',')
-    .map((tag) => tag.trim())
-    .filter(Boolean);
+  const labels = Array.from(new Set(draft.tags.map((t) => t.trim()).filter(Boolean)));
 
   await db.withExclusiveTransactionAsync(async (tx) => {
     await tx.runAsync(
@@ -308,15 +351,8 @@ async function insertNote(personId: string, draft: NoteDraft) {
   });
 }
 
-async function syncPersonTags(tx: any, personId: string, rawTags: string, now: string) {
-  const labels = Array.from(
-    new Set(
-      rawTags
-        .split(',')
-        .map((tag) => tag.trim())
-        .filter(Boolean)
-    )
-  );
+async function syncPersonTags(tx: any, personId: string, tags: string[], now: string) {
+  const labels = Array.from(new Set(tags.map((tag) => tag.trim()).filter(Boolean)));
 
   await tx.runAsync(`DELETE FROM person_tag WHERE person_id = ?`, personId);
 
@@ -411,6 +447,31 @@ async function renameTag(tagId: string, label: string) {
   await db.runAsync(`UPDATE tag SET label = ? WHERE id = ?`, label.trim(), tagId);
 }
 
+async function createTag(label: string) {
+  const db = await getDatabase();
+  const now = nowIso();
+  const cleanLabel = label.trim();
+  if (!cleanLabel) {
+    return;
+  }
+
+  const existing = await db.getFirstAsync<{ id: string; label: string }>(
+    `SELECT id, label FROM tag WHERE lower(label) = lower(?) LIMIT 1`,
+    cleanLabel
+  );
+  if (existing) {
+    return existing.label;
+  }
+
+  await db.runAsync(
+    `INSERT INTO tag (id, label, created_at) VALUES (?, ?, ?)`,
+    randomUUID(),
+    cleanLabel,
+    now
+  );
+  return cleanLabel;
+}
+
 async function deleteTag(tagId: string) {
   const db = await getDatabase();
   await db.runAsync(`DELETE FROM tag WHERE id = ?`, tagId);
@@ -427,6 +488,8 @@ export default function App() {
   const [editingPersonId, setEditingPersonId] = useState<string | null>(null);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [tagDraft, setTagDraft] = useState('');
+  const [newTagDraft, setNewTagDraft] = useState('');
+  const [showTagForm, setShowTagForm] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
   const [personDraft, setPersonDraft] = useState<PersonDraft>(emptyPersonDraft);
@@ -608,6 +671,13 @@ export default function App() {
     setTagDraft(selectedTag?.label ?? '');
   }, [selectedTag?.id]);
 
+  useEffect(() => {
+    if (activeSection === 'people' && people.length === 0) {
+      setShowPersonForm(true);
+      setMobileDetailOpen(false);
+    }
+  }, [activeSection, people.length]);
+
   const factCells = selectedPerson
     ? [
         ['Company', selectedPerson.company ?? '-'],
@@ -682,6 +752,22 @@ export default function App() {
 
   const goBack = () => setMobileDetailOpen(false);
 
+  const availableTags = useMemo(() => allTags.map((t) => t.label), [allTags]);
+
+  const createPersonFormTag = async (label: string): Promise<string | null> => {
+    const trimmed = label.trim();
+    if (!trimmed) return null;
+    const existing = allTags.find((t) => t.label.toLowerCase() === trimmed.toLowerCase());
+    if (existing) return existing.label;
+    try {
+      await createTag(trimmed);
+      await refresh(selectedPersonId);
+      return trimmed;
+    } catch {
+      return null;
+    }
+  };
+
   const startEditPerson = (person: PersonRecord) => {
     setEditingPersonId(person.id);
     setPersonDraft({
@@ -695,7 +781,7 @@ export default function App() {
       metDate: person.met_date ?? '',
       relationship: person.relationship ?? 'acquaintance',
       followUpDate: person.follow_up_date ?? '',
-      tags: person.tags.map((tag) => tag.label).join(', '),
+      tags: person.tags.map((tag) => tag.label),
     });
     setShowPersonForm(true);
     if (!isDesktop) setMobileDetailOpen(true);
@@ -751,6 +837,21 @@ export default function App() {
     }
   };
 
+  const saveNewTag = async () => {
+    if (!newTagDraft.trim()) {
+      return;
+    }
+
+    try {
+      await createTag(newTagDraft);
+      setNewTagDraft('');
+      setShowTagForm(false);
+      await refresh(selectedPersonId);
+    } catch {
+      Alert.alert('Database error', 'Orbit could not create this tag.');
+    }
+  };
+
   const removeTag = async (tagId: string) => {
     try {
       await deleteTag(tagId);
@@ -769,13 +870,8 @@ export default function App() {
           {(!mobileDetailOpen || isDesktop) ? (
             <>
               <View style={styles.header}>
-                <Text style={styles.pageTitle}>
-                  {activeSection === 'people'
-                    ? 'People'
-                    : activeSection === 'notes'
-                      ? 'Notes'
-                      : 'Tags'}
-                </Text>
+                <SvgXml xml={ORBIT_LOGO_SVG} width={32} height={32} />
+                <Text style={styles.pageTitle}>Orbit</Text>
               </View>
 
               <View style={styles.toolbar}>
@@ -806,6 +902,8 @@ export default function App() {
 
           {activeSection === 'people' ? (
             <PeopleSection
+              availableTags={allTags.map((tag) => tag.label)}
+              createPersonFormTag={createPersonFormTag}
               editingNoteId={editingNoteId}
               editingPersonId={editingPersonId}
               factCells={factCells}
@@ -854,16 +952,21 @@ export default function App() {
               isDesktop={isDesktop}
               mobileDetailOpen={mobileDetailOpen}
               onBack={goBack}
+              onCreateTag={saveNewTag}
               onOpenPerson={(personId) => {
                 selectPerson(personId);
                 setActiveSection('people');
               }}
               onDeleteTag={removeTag}
+              onNewTagDraftChange={setNewTagDraft}
               onSelectTag={selectTag}
+              onShowTagForm={setShowTagForm}
               onTagDraftChange={setTagDraft}
               onTagSave={saveTag}
+              newTagDraft={newTagDraft}
               selectedTag={selectedTag}
               selectedTagId={selectedTagId}
+              showTagForm={showTagForm}
               tagDraft={tagDraft}
             />
           )}
@@ -888,7 +991,99 @@ export default function App() {
   );
 }
 
+function PersonForm({
+  availableTags,
+  onCreateTag,
+  draft,
+  setDraft,
+  editingPersonId,
+  onSave,
+}: {
+  availableTags: string[];
+  onCreateTag: (label: string) => Promise<string | null>;
+  draft: PersonDraft;
+  setDraft: (fn: (current: PersonDraft) => PersonDraft) => void;
+  editingPersonId: string | null;
+  onSave: () => void;
+}) {
+  const hasSecondary = Boolean(
+    draft.school || draft.metDate || draft.followUpDate || draft.tags.length || draft.summary
+  );
+  const [showMore, setShowMore] = useState(hasSecondary);
+
+  return (
+    <View style={styles.formSection}>
+      <Text style={styles.formHeading}>{editingPersonId ? 'Edit person' : 'New person'}</Text>
+      <Field
+        label="Name"
+        value={draft.name}
+        onChangeText={(v) => setDraft((c) => ({ ...c, name: v }))}
+      />
+      <Text style={styles.fieldLabel}>Relationship</Text>
+      <View style={styles.typeRow}>
+        {RELATIONSHIPS.map((rel) => (
+          <TagChip
+            key={rel}
+            label={rel}
+            active={draft.relationship === rel}
+            onPress={() => setDraft((c) => ({ ...c, relationship: rel }))}
+          />
+        ))}
+      </View>
+      <View style={styles.formPairRow}>
+        <View style={styles.formPairCell}>
+          <Field label="Company" value={draft.company} onChangeText={(v) => setDraft((c) => ({ ...c, company: v }))} />
+        </View>
+        <View style={styles.formPairCell}>
+          <Field label="Role" value={draft.role} onChangeText={(v) => setDraft((c) => ({ ...c, role: v }))} />
+        </View>
+      </View>
+      <View style={styles.formPairRow}>
+        <View style={styles.formPairCell}>
+          <Field label="City" value={draft.city} onChangeText={(v) => setDraft((c) => ({ ...c, city: v }))} />
+        </View>
+        <View style={styles.formPairCell}>
+          <Field label="Met at" value={draft.metAt} onChangeText={(v) => setDraft((c) => ({ ...c, metAt: v }))} />
+        </View>
+      </View>
+      <Pressable onPress={() => setShowMore((s) => !s)} style={styles.moreToggle}>
+        <Text style={styles.moreToggleText}>{showMore ? '− Less details' : '+ More details'}</Text>
+      </Pressable>
+      {showMore ? (
+        <View style={styles.formGrid}>
+          <Field label="School" value={draft.school} onChangeText={(v) => setDraft((c) => ({ ...c, school: v }))} />
+          <DateField label="Met date" value={draft.metDate} onChange={(v) => setDraft((c) => ({ ...c, metDate: v }))} />
+          <DateField label="Follow up" value={draft.followUpDate} onChange={(v) => setDraft((c) => ({ ...c, followUpDate: v }))} />
+          <TagMultiSelect
+            availableTags={availableTags}
+            label="Tags"
+            onCreateTag={async (label) => {
+              const created = await onCreateTag(label);
+              if (!created) {
+                return null;
+              }
+              setDraft((c) => ({
+                ...c,
+                tags: c.tags.includes(created) ? c.tags : [...c.tags, created],
+              }));
+              return created;
+            }}
+            onChange={(tags) => setDraft((c) => ({ ...c, tags }))}
+            selectedTags={draft.tags}
+          />
+          <Field label="Summary" multiline value={draft.summary} onChangeText={(v) => setDraft((c) => ({ ...c, summary: v }))} />
+        </View>
+      ) : null}
+      <Pressable onPress={onSave} style={[styles.primaryButton, styles.formSaveButton]}>
+        <Text style={styles.primaryButtonText}>{editingPersonId ? 'Update person' : 'Save person'}</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 function PeopleSection({
+  availableTags,
+  createPersonFormTag,
   editingNoteId,
   editingPersonId,
   factCells,
@@ -912,6 +1107,8 @@ function PeopleSection({
   setShowPersonForm,
   showPersonForm,
 }: {
+  availableTags: string[];
+  createPersonFormTag: (label: string) => Promise<string | null>;
   editingNoteId: string | null;
   editingPersonId: string | null;
   factCells: string[][];
@@ -973,30 +1170,14 @@ function PeopleSection({
           </View>
 
           {showPersonForm ? (
-            <View style={styles.formSection}>
-              <Text style={styles.formHeading}>{editingPersonId ? 'Edit person' : 'New person'}</Text>
-              <View style={styles.formGrid}>
-                <Field label="Name" value={personDraft.name} onChangeText={(value) => setPersonDraft((current) => ({ ...current, name: value }))} />
-                <Field label="Company" value={personDraft.company} onChangeText={(value) => setPersonDraft((current) => ({ ...current, company: value }))} />
-                <Field label="Role" value={personDraft.role} onChangeText={(value) => setPersonDraft((current) => ({ ...current, role: value }))} />
-                <Field label="City" value={personDraft.city} onChangeText={(value) => setPersonDraft((current) => ({ ...current, city: value }))} />
-                <Field label="School" value={personDraft.school} onChangeText={(value) => setPersonDraft((current) => ({ ...current, school: value }))} />
-                <Field label="Met at" value={personDraft.metAt} onChangeText={(value) => setPersonDraft((current) => ({ ...current, metAt: value }))} />
-                <Field label="Met date" value={personDraft.metDate} onChangeText={(value) => setPersonDraft((current) => ({ ...current, metDate: value }))} />
-                <Field label="Follow up" value={personDraft.followUpDate} onChangeText={(value) => setPersonDraft((current) => ({ ...current, followUpDate: value }))} />
-              </View>
-              <Text style={styles.fieldLabel}>Relationship</Text>
-              <View style={styles.typeRow}>
-                {RELATIONSHIPS.map((relationship) => (
-                  <TagChip key={relationship} label={relationship} active={personDraft.relationship === relationship} onPress={() => setPersonDraft((current) => ({ ...current, relationship }))} />
-                ))}
-              </View>
-              <Field label="Tags" value={personDraft.tags} onChangeText={(value) => setPersonDraft((current) => ({ ...current, tags: value }))} />
-              <Field label="Summary" multiline value={personDraft.summary} onChangeText={(value) => setPersonDraft((current) => ({ ...current, summary: value }))} />
-              <Pressable onPress={savePerson} style={styles.primaryButton}>
-                <Text style={styles.primaryButtonText}>{editingPersonId ? 'Update person' : 'Save person'}</Text>
-              </Pressable>
-            </View>
+            <PersonForm
+              availableTags={availableTags}
+              draft={personDraft}
+              setDraft={setPersonDraft}
+              editingPersonId={editingPersonId}
+              onCreateTag={createPersonFormTag}
+              onSave={savePerson}
+            />
           ) : null}
 
           <View style={styles.noteComposerSection}>
@@ -1076,44 +1257,32 @@ function PeopleSection({
           </View>
 
           {showPersonForm && !mobileDetailOpen ? (
-            <View style={styles.formSection}>
-              <Text style={styles.formHeading}>{editingPersonId ? 'Edit person' : 'New person'}</Text>
-              <View style={styles.formGrid}>
-                <Field label="Name" value={personDraft.name} onChangeText={(value) => setPersonDraft((current) => ({ ...current, name: value }))} />
-                <Field label="Company" value={personDraft.company} onChangeText={(value) => setPersonDraft((current) => ({ ...current, company: value }))} />
-                <Field label="Role" value={personDraft.role} onChangeText={(value) => setPersonDraft((current) => ({ ...current, role: value }))} />
-                <Field label="City" value={personDraft.city} onChangeText={(value) => setPersonDraft((current) => ({ ...current, city: value }))} />
-                <Field label="School" value={personDraft.school} onChangeText={(value) => setPersonDraft((current) => ({ ...current, school: value }))} />
-                <Field label="Met at" value={personDraft.metAt} onChangeText={(value) => setPersonDraft((current) => ({ ...current, metAt: value }))} />
-                <Field label="Met date" value={personDraft.metDate} onChangeText={(value) => setPersonDraft((current) => ({ ...current, metDate: value }))} />
-                <Field label="Follow up" value={personDraft.followUpDate} onChangeText={(value) => setPersonDraft((current) => ({ ...current, followUpDate: value }))} />
-              </View>
-              <Text style={styles.fieldLabel}>Relationship</Text>
-              <View style={styles.typeRow}>
-                {RELATIONSHIPS.map((relationship) => (
-                  <TagChip key={relationship} label={relationship} active={personDraft.relationship === relationship} onPress={() => setPersonDraft((current) => ({ ...current, relationship }))} />
-                ))}
-              </View>
-              <Field label="Tags" value={personDraft.tags} onChangeText={(value) => setPersonDraft((current) => ({ ...current, tags: value }))} />
-              <Field label="Summary" multiline value={personDraft.summary} onChangeText={(value) => setPersonDraft((current) => ({ ...current, summary: value }))} />
-              <Pressable onPress={savePerson} style={styles.primaryButton}>
-                <Text style={styles.primaryButtonText}>{editingPersonId ? 'Update person' : 'Save person'}</Text>
-              </Pressable>
-            </View>
-          ) : null}
-
-          <ScrollView showsVerticalScrollIndicator={false}>
-            {filteredPeople.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyTitle}>No results</Text>
-                <Text style={styles.emptyBody}>Change the filter or add someone new.</Text>
-              </View>
-            ) : (
-              filteredPeople.map((person) => (
-                <PersonRowView key={person.id} active={person.id === selectedPersonId} person={person} onPress={() => selectPerson(person.id)} />
-              ))
-            )}
-          </ScrollView>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <PersonForm
+                availableTags={availableTags}
+                draft={personDraft}
+                setDraft={setPersonDraft}
+                editingPersonId={editingPersonId}
+                onCreateTag={createPersonFormTag}
+                onSave={savePerson}
+              />
+            </ScrollView>
+          ) : (
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {filteredPeople.length === 0 ? (
+                <Pressable onPress={() => setShowPersonForm(() => true)} style={styles.emptyAddPrompt}>
+                  <View style={styles.emptyAddCircle}>
+                    <Text style={styles.emptyAddPlus}>+</Text>
+                  </View>
+                  <Text style={styles.emptyAddLabel}>Add to your Orbit</Text>
+                </Pressable>
+              ) : (
+                filteredPeople.map((person) => (
+                  <PersonRowView key={person.id} active={person.id === selectedPersonId} person={person} onPress={() => selectPerson(person.id)} />
+                ))
+              )}
+            </ScrollView>
+          )}
         </View>
       ) : null}
 
@@ -1237,26 +1406,36 @@ function TagsSection({
   isDesktop,
   mobileDetailOpen,
   onBack,
+  onCreateTag,
   onDeleteTag,
+  onNewTagDraftChange,
   onOpenPerson,
   onSelectTag,
+  onShowTagForm,
   onTagDraftChange,
   onTagSave,
+  newTagDraft,
   selectedTag,
   selectedTagId,
+  showTagForm,
   tagDraft,
 }: {
   filteredTags: Array<{ id: string; label: string; count: number; people: PersonRecord[] }>;
   isDesktop: boolean;
   mobileDetailOpen: boolean;
   onBack: () => void;
+  onCreateTag: () => void;
   onDeleteTag: (tagId: string) => void;
+  onNewTagDraftChange: (value: string) => void;
   onOpenPerson: (personId: string) => void;
   onSelectTag: (tagId: string) => void;
+  onShowTagForm: (value: (current: boolean) => boolean) => void;
   onTagDraftChange: (value: string) => void;
   onTagSave: () => void;
+  newTagDraft: string;
   selectedTag: { id: string; label: string; count: number; people: PersonRecord[] } | null;
   selectedTagId: string | null;
+  showTagForm: boolean;
   tagDraft: string;
 }) {
   const showDetail = isDesktop || mobileDetailOpen;
@@ -1268,13 +1447,27 @@ function TagsSection({
         <View style={[styles.listPane, isDesktop && styles.listPaneDesktop]}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionLabel}>All tags</Text>
+            <Pressable onPress={() => onShowTagForm((current) => !current)} style={styles.ghostButton}>
+              <Text style={styles.ghostButtonText}>{showTagForm ? 'Close' : '+ New'}</Text>
+            </Pressable>
           </View>
+          {showTagForm ? (
+            <View style={styles.formSection}>
+              <Text style={styles.formHeading}>New tag</Text>
+              <Field label="Label" value={newTagDraft} onChangeText={onNewTagDraftChange} />
+              <Pressable onPress={onCreateTag} style={styles.primaryButton}>
+                <Text style={styles.primaryButtonText}>Create tag</Text>
+              </Pressable>
+            </View>
+          ) : null}
           <ScrollView showsVerticalScrollIndicator={false}>
             {filteredTags.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyTitle}>No tags</Text>
-                <Text style={styles.emptyBody}>Add tags when you create people.</Text>
-              </View>
+              <Pressable onPress={() => onShowTagForm(() => true)} style={styles.emptyAddPrompt}>
+                <View style={styles.emptyAddCircle}>
+                  <Text style={styles.emptyAddPlus}>+</Text>
+                </View>
+                <Text style={styles.emptyAddLabel}>Add to your Orbit</Text>
+              </Pressable>
             ) : (
               filteredTags.map((tag) => (
                 <Pressable key={tag.id} onPress={() => onSelectTag(tag.id)} style={[styles.tagListRow, tag.id === selectedTagId && styles.rowActive]}>
@@ -1346,8 +1539,7 @@ function TagsSection({
   );
 }
 
-type StarData = {
-  id: string;
+type BackgroundStar = {
   idx: number;
   size: number;
   base: number;
@@ -1368,23 +1560,16 @@ type ShootingStar = {
 };
 
 function useStarfield() {
-  const stars = useMemo<StarData[]>(() => {
-    const makeStar = (index: number, bright: boolean): StarData => ({
-      id: `${bright ? 'b' : 'f'}-${index}`,
-      idx: index,
-      size: bright ? 6 + Math.random() * 4 : 3 + Math.random() * 3,
-      base: bright ? 0.1 + Math.random() * 0.1 : 0.04 + Math.random() * 0.06,
-      speed: 0.001 + Math.random() * 0.002,
-      offset: index * 2.3,
-      lifeSpeed: 0.00012 + Math.random() * 0.00025,
+  const bgStars = useMemo<BackgroundStar[]>(() =>
+    Array.from({ length: 50 }, (_, i) => ({
+      idx: i,
+      size: 1.5 + Math.random() * 2,
+      base: 0.03 + Math.random() * 0.05,
+      speed: 0.0008 + Math.random() * 0.0015,
+      offset: i * 2.3,
+      lifeSpeed: 0.00010 + Math.random() * 0.00020,
       lifeOffset: Math.random() * Math.PI * 2,
-    });
-
-    return [
-      ...Array.from({ length: 60 }, (_, i) => makeStar(i, false)),
-      ...Array.from({ length: 8 }, (_, i) => makeStar(i + 60, true)),
-    ];
-  }, []);
+    })), []);
 
   const [time, setTime] = useState(0);
   const [shooters, setShooters] = useState<ShootingStar[]>([]);
@@ -1418,78 +1603,160 @@ function useStarfield() {
     return () => cancelAnimationFrame(frame);
   }, [nextId]);
 
-  return { stars, time, shooters };
+  return { bgStars, time, shooters };
 }
 
 function Starfield() {
-  const { stars, time, shooters } = useStarfield();
+  const { width, height } = useWindowDimensions();
+  const { bgStars, time, shooters } = useStarfield();
+
+  // Sky slowly pans: full 360° rotation every ~55 min
+  const centerRA = (time * 0.00011) % 360;
+  const centerDec = 15; // slightly northern sky
+  const scale = width / 90; // pixels per degree of sky
+
+  const project = (raDeg: number, decDeg: number) => {
+    const ra = normalizeRA(raDeg);
+    let dRA = ra - normalizeRA(centerRA);
+    if (dRA > 180) dRA -= 360;
+    if (dRA < -180) dRA += 360;
+    return {
+      x: width / 2 + dRA * scale,
+      y: height / 2 - (decDeg - centerDec) * scale,
+    };
+  };
+
+  const onScreen = (x: number, y: number) =>
+    x >= -20 && x <= width + 20 && y >= -20 && y <= height + 20;
 
   return (
     <View pointerEvents="none" style={styles.starfield}>
-      {stars.map((star) => {
-        const arm = Math.max(1, star.size * 0.2);
-        const flicker = star.base * (0.6 + 0.4 * Math.sin(time * star.speed + star.offset));
+      {/* Faint background stars — simple dots */}
+      {bgStars.map((star) => {
         const phase = time * star.lifeSpeed + star.lifeOffset;
         const life = 0.5 + 0.5 * Math.sin(phase);
-        const alive = life > 0.2;
-        const fadeIn = Math.min(1, (life - 0.2) / 0.15);
-        const opacity = alive ? flicker * fadeIn : 0;
+        if (life <= 0.2) return null;
+        const opacity = star.base * Math.min(1, (life - 0.2) / 0.15) *
+          (0.6 + 0.4 * Math.sin(time * star.speed + star.offset));
         const cycle = Math.floor(phase / Math.PI);
         const seed = cycle * 127 + star.idx * 311;
-        const x = ((seed * 16807 + 7) % 2147483647) / 2147483647;
-        const y = ((seed * 48271 + 11) % 2147483647) / 2147483647;
-
+        const sx = ((seed * 16807 + 7) % 2147483647) / 2147483647;
+        const sy = ((seed * 48271 + 11) % 2147483647) / 2147483647;
         return (
           <View
-            key={star.id}
+            key={star.idx}
             style={{
               position: 'absolute',
-              left: `${x * 100}%`,
-              top: `${y * 100}%`,
+              left: `${sx * 100}%`,
+              top: `${sy * 100}%`,
               width: star.size,
               height: star.size,
-              alignItems: 'center',
-              justifyContent: 'center',
+              borderRadius: star.size,
+              backgroundColor: '#ffffff',
               opacity,
             }}
+          />
+        );
+      })}
+
+      {/* Constellation lines */}
+      {CONSTELLATION_LINES.flatMap((c) =>
+        c.lines.flatMap((segment, si) => {
+          const segs: React.ReactNode[] = [];
+          for (let i = 0; i < segment.length - 1; i++) {
+            const p1 = project(segment[i][0], segment[i][1]);
+            const p2 = project(segment[i + 1][0], segment[i + 1][1]);
+            if (!onScreen(p1.x, p1.y) && !onScreen(p2.x, p2.y)) continue;
+            const dx = p2.x - p1.x;
+            const dy = p2.y - p1.y;
+            const len = Math.sqrt(dx * dx + dy * dy);
+            if (len < 1) continue;
+            const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
+            segs.push(
+              <View
+                key={`${c.id}-${si}-${i}`}
+                style={{
+                  position: 'absolute',
+                  left: (p1.x + p2.x) / 2 - len / 2,
+                  top: (p1.y + p2.y) / 2 - 0.5,
+                  width: len,
+                  height: 1,
+                  backgroundColor: '#8b7cf0',
+                  opacity: 0.18,
+                  transform: [{ rotate: `${angle}deg` }],
+                }}
+              />
+            );
+          }
+          return segs;
+        })
+      )}
+
+      {/* Real bright stars — sparkle shape, sized by magnitude */}
+      {BRIGHT_STARS.map((star) => {
+        const { x, y } = project(star.ra, star.dec);
+        if (!onScreen(x, y)) return null;
+        const size = Math.max(3, (5 - star.mag) * 1.5);
+        const arm = Math.max(0.5, size * 0.18);
+        return (
+          <View
+            key={star.hip}
+            style={{
+              position: 'absolute',
+              left: x - size / 2,
+              top: y - size / 2,
+              width: size,
+              height: size,
+              alignItems: 'center',
+              justifyContent: 'center',
+              opacity: 0.9,
+            }}
           >
-            <View style={{ position: 'absolute', width: star.size, height: arm, borderRadius: arm * 0.4, backgroundColor: '#ffffff' }} />
-            <View style={{ position: 'absolute', width: arm, height: star.size, borderRadius: arm * 0.4, backgroundColor: '#ffffff' }} />
+            <View style={{ position: 'absolute', width: size, height: arm, borderRadius: arm * 0.5, backgroundColor: '#ffffff' }} />
+            <View style={{ position: 'absolute', width: arm, height: size, borderRadius: arm * 0.5, backgroundColor: '#ffffff' }} />
+            <View style={{ position: 'absolute', width: size * 0.7, height: arm * 0.75, borderRadius: arm * 0.5, backgroundColor: '#ffffff', transform: [{ rotate: '45deg' }] }} />
+            <View style={{ position: 'absolute', width: size * 0.7, height: arm * 0.75, borderRadius: arm * 0.5, backgroundColor: '#ffffff', transform: [{ rotate: '-45deg' }] }} />
+            <View style={{ position: 'absolute', width: arm * 2, height: arm * 2, borderRadius: arm, backgroundColor: '#ffffff' }} />
           </View>
         );
       })}
+
+      {/* Shooting stars — tapered contrail */}
       {shooters.map((s) => {
         const age = (time - s.born) / s.duration;
         if (age < 0 || age > 1) return null;
         const headT = Math.min(1, age * 2);
         const tailT = Math.max(0, age * 2 - 0.6);
-        const dx = Math.cos(s.angle) * s.length;
-        const dy = Math.sin(s.angle) * s.length;
-        const headX = s.x * 100 + dx * headT;
-        const headY = s.y * 100 + dy * headT;
-        const tailX = s.x * 100 + dx * tailT;
-        const tailY = s.y * 100 + dy * tailT;
-        const trailLen = Math.sqrt((headX - tailX) ** 2 + (headY - tailY) ** 2);
-        const trailAngle = Math.atan2(headY - tailY, headX - tailX);
         const fade = age < 0.3 ? age / 0.3 : 1 - (age - 0.3) / 0.7;
-
-        return (
-          <View
-            key={s.id}
-            style={{
-              position: 'absolute',
-              left: `${tailX}%`,
-              top: `${tailY}%`,
-              width: trailLen * 3,
-              height: 1.5,
-              borderRadius: 1,
-              backgroundColor: '#ffffff',
-              opacity: fade * 0.3,
-              transform: [{ rotate: `${trailAngle}rad` }],
-              transformOrigin: 'left center',
-            }}
-          />
-        );
+        const cosA = Math.cos(s.angle);
+        const sinA = Math.sin(s.angle);
+        const N = 18;
+        const dots = Array.from({ length: N }, (_, i) => {
+          const t = i / (N - 1); // 0 = head, 1 = tail
+          const frac = headT - t * (headT - tailT);
+          const px = s.x * 100 + cosA * s.length * frac;
+          const py = s.y * 100 + sinA * s.length * frac;
+          const dotSize = Math.max(0.5, (1 - t) * 3.5 + 0.5);
+          const opacity = fade * Math.pow(1 - t, 1.4) * 0.75;
+          return (
+            <View
+              key={i}
+              style={{
+                position: 'absolute',
+                left: `${px}%`,
+                top: `${py}%`,
+                width: dotSize,
+                height: dotSize,
+                borderRadius: dotSize,
+                backgroundColor: '#ffffff',
+                opacity,
+                marginLeft: -dotSize / 2,
+                marginTop: -dotSize / 2,
+              }}
+            />
+          );
+        });
+        return <Fragment key={s.id}>{dots}</Fragment>;
       })}
     </View>
   );
@@ -1597,6 +1864,155 @@ function Field({
   );
 }
 
+function DateField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (iso: string) => void;
+}) {
+  const [show, setShow] = useState(false);
+  const dateValue = value ? new Date(value) : new Date();
+
+  const handleChange = (_: unknown, selected?: Date) => {
+    if (Platform.OS === 'android') setShow(false);
+    if (selected) onChange(selected.toISOString().split('T')[0]);
+  };
+
+  return (
+    <View style={styles.field}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <Pressable onPress={() => setShow(true)} style={styles.dateButton}>
+        <Text style={[styles.dateButtonText, !value && styles.dateButtonPlaceholder]}>
+          {value ? formatDate(value) : 'Select date'}
+        </Text>
+        {value ? (
+          <Pressable onPress={() => onChange('')} hitSlop={8}>
+            <Text style={styles.dateClear}>×</Text>
+          </Pressable>
+        ) : null}
+      </Pressable>
+
+      {show && Platform.OS === 'android' && (
+        <DateTimePicker value={dateValue} mode="date" display="calendar" onChange={handleChange} />
+      )}
+
+      {show && Platform.OS === 'ios' && (
+        <Modal transparent animationType="slide" onRequestClose={() => setShow(false)}>
+          <Pressable style={styles.dateModalBackdrop} onPress={() => setShow(false)} />
+          <View style={styles.dateSheet}>
+            <View style={styles.dateSheetToolbar}>
+              <Pressable onPress={() => { onChange(''); setShow(false); }}>
+                <Text style={styles.dateSheetClear}>Clear</Text>
+              </Pressable>
+              <Pressable onPress={() => setShow(false)}>
+                <Text style={styles.dateSheetDone}>Done</Text>
+              </Pressable>
+            </View>
+            <DateTimePicker
+              value={dateValue}
+              mode="date"
+              display="spinner"
+              onChange={handleChange}
+              themeVariant="dark"
+              style={{ backgroundColor: '#0e0e12' }}
+            />
+          </View>
+        </Modal>
+      )}
+    </View>
+  );
+}
+
+function TagMultiSelect({
+  availableTags,
+  label,
+  onChange,
+  onCreateTag,
+  selectedTags,
+}: {
+  availableTags: string[];
+  label: string;
+  onChange: (tags: string[]) => void;
+  onCreateTag: (label: string) => Promise<string | null>;
+  selectedTags: string[];
+}) {
+  const [open, setOpen] = useState(false);
+  const [newTag, setNewTag] = useState('');
+
+  const toggleTag = (tag: string) => {
+    onChange(
+      selectedTags.includes(tag)
+        ? selectedTags.filter((value) => value !== tag)
+        : [...selectedTags, tag]
+    );
+  };
+
+  return (
+    <View style={styles.field}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <Pressable onPress={() => setOpen((current) => !current)} style={styles.tagDropdownTrigger}>
+        <View style={styles.tagChipWrap}>
+          {selectedTags.length > 0 ? (
+            selectedTags.map((tag) => (
+              <View key={tag} style={styles.selectedTagChip}>
+                <Text style={styles.selectedTagText}>{tag}</Text>
+                <Pressable onPress={() => onChange(selectedTags.filter((value) => value !== tag))} hitSlop={8}>
+                  <Text style={styles.selectedTagRemove}>x</Text>
+                </Pressable>
+              </View>
+            ))
+          ) : (
+            <Text style={styles.tagPlaceholder}>Select tags</Text>
+          )}
+        </View>
+      </Pressable>
+
+      {open ? (
+        <View style={styles.tagDropdown}>
+          <ScrollView nestedScrollEnabled style={styles.tagDropdownList}>
+            {availableTags.map((tag) => {
+              const active = selectedTags.includes(tag);
+              return (
+                <Pressable key={tag} onPress={() => toggleTag(tag)} style={styles.tagDropdownItem}>
+                  <Text style={[styles.tagDropdownText, active && styles.tagDropdownTextActive]}>
+                    {tag}
+                  </Text>
+                  {active ? <Text style={styles.tagDropdownCheck}>✓</Text> : null}
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+          <View style={styles.tagCreateRow}>
+            <TextInput
+              onChangeText={setNewTag}
+              placeholder="Create new tag"
+              placeholderTextColor="#3a3a44"
+              style={[styles.input, styles.tagCreateInput]}
+              value={newTag}
+            />
+            <Pressable
+              onPress={async () => {
+                const clean = newTag.trim();
+                if (!clean) {
+                  return;
+                }
+                await onCreateTag(clean);
+                setNewTag('');
+              }}
+              style={styles.ghostButton}
+            >
+              <Text style={styles.ghostButtonText}>Create</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 function Chip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   return (
     <Pressable
@@ -1679,6 +2095,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 48,
     paddingBottom: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   pageTitle: {
     color: '#e8e8f0',
@@ -1817,6 +2236,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 16,
   },
+  formPairRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 0,
+  },
+  formPairCell: {
+    flex: 1,
+  },
+  moreToggle: {
+    paddingVertical: 10,
+  },
+  moreToggleText: {
+    color: '#7c6cf0',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  formSaveButton: {
+    marginTop: 12,
+  },
   formHeading: {
     color: '#e8e8f0',
     fontSize: 18,
@@ -1848,6 +2286,137 @@ const styles = StyleSheet.create({
     minHeight: 80,
     paddingTop: 10,
     paddingBottom: 10,
+  },
+  tagDropdownTrigger: {
+    backgroundColor: '#0e0e12',
+    borderRadius: 4,
+    minHeight: 40,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  tagChipWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  selectedTagChip: {
+    alignItems: 'center',
+    backgroundColor: '#18181d',
+    borderRadius: 14,
+    flexDirection: 'row',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  selectedTagText: {
+    color: '#c0c0d0',
+    fontSize: 12,
+    fontWeight: '400',
+  },
+  selectedTagRemove: {
+    color: '#8a8a98',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  tagPlaceholder: {
+    color: '#5a5a66',
+    fontSize: 14,
+    fontWeight: '400',
+  },
+  tagDropdown: {
+    backgroundColor: '#0e0e12',
+    borderColor: '#1a1a20',
+    borderRadius: 6,
+    borderWidth: 1,
+    marginTop: 8,
+    overflow: 'hidden',
+  },
+  tagDropdownList: {
+    maxHeight: 180,
+  },
+  tagDropdownItem: {
+    alignItems: 'center',
+    borderBottomColor: '#1a1a20',
+    borderBottomWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  tagDropdownText: {
+    color: '#a0a0b0',
+    fontSize: 13,
+    fontWeight: '400',
+  },
+  tagDropdownTextActive: {
+    color: '#e8e8f0',
+  },
+  tagDropdownCheck: {
+    color: '#e8e8f0',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  tagCreateRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    padding: 10,
+  },
+  tagCreateInput: {
+    flex: 1,
+    minHeight: 36,
+  },
+  dateButton: {
+    alignItems: 'center',
+    backgroundColor: '#0e0e12',
+    borderRadius: 4,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    minHeight: 36,
+    paddingHorizontal: 10,
+  },
+  dateButtonText: {
+    color: '#a0a0b0',
+    fontSize: 14,
+    fontWeight: '400',
+  },
+  dateButtonPlaceholder: {
+    color: '#3a3a44',
+  },
+  dateClear: {
+    color: '#5a5a66',
+    fontSize: 18,
+    lineHeight: 20,
+    paddingLeft: 8,
+  },
+  dateModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  dateSheet: {
+    backgroundColor: '#0e0e12',
+    borderTopColor: '#1a1a20',
+    borderTopWidth: 1,
+    paddingBottom: 32,
+  },
+  dateSheetToolbar: {
+    alignItems: 'center',
+    borderBottomColor: '#1a1a20',
+    borderBottomWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  dateSheetClear: {
+    color: '#d08aa2',
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  dateSheetDone: {
+    color: '#7c6cf0',
+    fontSize: 15,
+    fontWeight: '600',
   },
   typeRow: {
     flexDirection: 'row',
@@ -2142,6 +2711,33 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingVertical: 12,
   },
+  emptyAddPrompt: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 64,
+    gap: 16,
+  },
+  emptyAddCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    borderWidth: 1.5,
+    borderColor: '#2a2a34',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyAddPlus: {
+    color: '#4a4a56',
+    fontSize: 26,
+    fontWeight: '300',
+    lineHeight: 30,
+  },
+  emptyAddLabel: {
+    color: '#3a3a44',
+    fontSize: 14,
+    fontWeight: '400',
+    letterSpacing: 0.2,
+  },
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -2167,16 +2763,16 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     flexDirection: 'row',
     justifyContent: 'space-around',
-    paddingTop: 14,
-    paddingBottom: 48,
+    paddingTop: 8,
+    paddingBottom: 16,
   },
   navItem: {
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
   },
   navLabel: {
     color: '#a0a0b0',
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '400',
     opacity: 0.35,
     textTransform: 'uppercase',
