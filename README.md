@@ -21,7 +21,7 @@ This repo includes a GitHub Actions workflow at `.github/workflows/android-apk.y
 
 - Trigger it manually from the Actions tab with `Build Android APK`
 - Or push a Git tag like `v1.0.0`
-- The workflow prebuilds Android, runs Gradle, and uploads an installable debug APK as a workflow artifact
+- The workflow prebuilds Android, runs Gradle, and uploads an installable release APK as a workflow artifact
 
 The uploaded artifact name is based on the app version from `app.json`.
 
