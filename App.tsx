@@ -1,4 +1,5 @@
 import { randomUUID } from 'expo-crypto';
+import * as Contacts from 'expo-contacts';
 import { BRIGHT_STARS, CONSTELLATION_LINES, normalizeRA } from './starData';
 import * as SQLite from 'expo-sqlite';
 import { StatusBar } from 'expo-status-bar';
@@ -71,6 +72,8 @@ const ORBIT_LOGO_SVG = `<svg width="200" height="200" viewBox="0 0 120 120" xmln
 const RELATIONSHIPS = ['close', 'acquaintance', 'just met'] as const;
 const NOTE_TYPES = ['free', 'coffee', 'call', 'message', 'event', 'intro'] as const;
 const FILTERS = ['all', 'follow up', 'close'] as const;
+const TAG_COLORS = ['#6a58cc', '#4f8cff', '#1f9d72', '#c17d2f', '#b94e7a', '#6b7280'] as const;
+const DEFAULT_TAG_COLOR = TAG_COLORS[0];
 
 type Relationship = (typeof RELATIONSHIPS)[number];
 type NoteType = (typeof NOTE_TYPES)[number];
@@ -84,10 +87,15 @@ type PersonRow = {
   role: string | null;
   city: string | null;
   school: string | null;
+  phone: string | null;
   met_at: string | null;
   met_date: string | null;
   relationship: Relationship | null;
   photo_uri: string | null;
+  instagram: string | null;
+  linkedin: string | null;
+  twitter: string | null;
+  website: string | null;
   follow_up_date: string | null;
   created_at: string;
   updated_at: string;
@@ -107,7 +115,21 @@ type TagJoinRow = {
   person_id: string;
   id: string;
   label: string;
+  color: string | null;
   created_at: string;
+};
+
+type TagRow = {
+  id: string;
+  label: string;
+  color: string | null;
+  created_at: string;
+};
+
+type TagOption = {
+  id: string;
+  label: string;
+  color: string;
 };
 
 type PersonRecord = PersonRow & {
@@ -122,9 +144,14 @@ type PersonDraft = {
   role: string;
   city: string;
   school: string;
+  phone: string;
   metAt: string;
   metDate: string;
   relationship: Relationship;
+  instagram: string;
+  linkedin: string;
+  twitter: string;
+  website: string;
   followUpDate: string;
   tags: string[];
 };
@@ -144,9 +171,14 @@ const emptyPersonDraft: PersonDraft = {
   role: '',
   city: '',
   school: '',
+  phone: '',
   metAt: '',
   metDate: '',
   relationship: 'acquaintance',
+  instagram: '',
+  linkedin: '',
+  twitter: '',
+  website: '',
   followUpDate: '',
   tags: [],
 };
@@ -173,10 +205,15 @@ async function getDatabase() {
           role TEXT,
           city TEXT,
           school TEXT,
+          phone TEXT,
           met_at TEXT,
           met_date TEXT,
           relationship TEXT CHECK(relationship IN ('close','acquaintance','just met')),
           photo_uri TEXT,
+          instagram TEXT,
+          linkedin TEXT,
+          twitter TEXT,
+          website TEXT,
           follow_up_date TEXT,
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
@@ -193,6 +230,7 @@ async function getDatabase() {
         CREATE TABLE IF NOT EXISTS tag (
           id TEXT PRIMARY KEY,
           label TEXT NOT NULL UNIQUE,
+          color TEXT,
           created_at TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS person_tag (
@@ -201,6 +239,21 @@ async function getDatabase() {
           PRIMARY KEY (person_id, tag_id)
         );
       `);
+      for (const column of ['instagram', 'linkedin', 'twitter', 'website']) {
+        try {
+          await db.execAsync(`ALTER TABLE person ADD COLUMN ${column} TEXT;`);
+        } catch {}
+      }
+      try {
+        await db.execAsync(`ALTER TABLE person ADD COLUMN phone TEXT;`);
+      } catch {}
+      try {
+        await db.execAsync(`ALTER TABLE tag ADD COLUMN color TEXT;`);
+      } catch {}
+      await db.runAsync(
+        `UPDATE tag SET color = ? WHERE color IS NULL OR trim(color) = ''`,
+        DEFAULT_TAG_COLOR
+      );
       return db;
     })();
   }
@@ -238,6 +291,21 @@ function hasFollowUp(person: PersonRow) {
   return Boolean(person.follow_up_date);
 }
 
+function normalizeTagColor(color: string | null | undefined) {
+  return color && TAG_COLORS.includes(color as (typeof TAG_COLORS)[number]) ? color : DEFAULT_TAG_COLOR;
+}
+
+function hexToRgba(hex: string, alpha: number) {
+  const normalized = hex.replace('#', '');
+  const value = normalized.length === 3
+    ? normalized.split('').map((char) => `${char}${char}`).join('')
+    : normalized;
+  const red = Number.parseInt(value.slice(0, 2), 16);
+  const green = Number.parseInt(value.slice(2, 4), 16);
+  const blue = Number.parseInt(value.slice(4, 6), 16);
+  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+}
+
 function buildPeople(peopleRows: PersonRow[], noteRows: NoteRow[], tagRows: TagJoinRow[]) {
   const notesByPerson = new Map<string, NoteRow[]>();
   const tagsByPerson = new Map<string, TagJoinRow[]>();
@@ -267,13 +335,18 @@ async function loadPeople() {
       `SELECT * FROM note ORDER BY pinned DESC, datetime(updated_at) DESC`
     ),
     db.getAllAsync<TagJoinRow>(
-      `SELECT person_tag.person_id, tag.id, tag.label, tag.created_at
+      `SELECT person_tag.person_id, tag.id, tag.label, tag.color, tag.created_at
        FROM person_tag JOIN tag ON tag.id = person_tag.tag_id
        ORDER BY tag.label ASC`
     ),
   ]);
 
   return buildPeople(peopleRows, noteRows, tagRows);
+}
+
+async function loadTagCatalog() {
+  const db = await getDatabase();
+  return db.getAllAsync<TagRow>(`SELECT id, label, color, created_at FROM tag ORDER BY label ASC`);
 }
 
 async function insertPerson(draft: PersonDraft) {
@@ -285,9 +358,10 @@ async function insertPerson(draft: PersonDraft) {
   await db.withExclusiveTransactionAsync(async (tx) => {
     await tx.runAsync(
       `INSERT INTO person (
-        id, name, summary, company, role, city, school, met_at, met_date,
-        relationship, photo_uri, follow_up_date, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        id, name, summary, company, role, city, school, phone, met_at, met_date,
+        relationship, photo_uri, instagram, linkedin, twitter, website,
+        follow_up_date, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       personId,
       draft.name.trim(),
       cleanValue(draft.summary),
@@ -295,10 +369,15 @@ async function insertPerson(draft: PersonDraft) {
       cleanValue(draft.role),
       cleanValue(draft.city),
       cleanValue(draft.school),
+      cleanValue(draft.phone),
       cleanValue(draft.metAt),
       cleanValue(draft.metDate),
       draft.relationship,
       null,
+      cleanValue(draft.instagram),
+      cleanValue(draft.linkedin),
+      cleanValue(draft.twitter),
+      cleanValue(draft.website),
       cleanValue(draft.followUpDate),
       now,
       now
@@ -313,9 +392,10 @@ async function insertPerson(draft: PersonDraft) {
 
       if (!existing) {
         await tx.runAsync(
-          `INSERT INTO tag (id, label, created_at) VALUES (?, ?, ?)`,
+          `INSERT INTO tag (id, label, color, created_at) VALUES (?, ?, ?, ?)`,
           tagId,
           label,
+          DEFAULT_TAG_COLOR,
           now
         );
       }
@@ -365,9 +445,10 @@ async function syncPersonTags(tx: any, personId: string, tags: string[], now: st
 
     if (!existing) {
       await tx.runAsync(
-        `INSERT INTO tag (id, label, created_at) VALUES (?, ?, ?)`,
+        `INSERT INTO tag (id, label, color, created_at) VALUES (?, ?, ?, ?)`,
         tagId,
         label,
+        DEFAULT_TAG_COLOR,
         now
       );
     }
@@ -387,8 +468,9 @@ async function updatePerson(personId: string, draft: PersonDraft) {
   await db.withExclusiveTransactionAsync(async (tx) => {
     await tx.runAsync(
       `UPDATE person
-       SET name = ?, summary = ?, company = ?, role = ?, city = ?, school = ?,
-           met_at = ?, met_date = ?, relationship = ?, follow_up_date = ?, updated_at = ?
+       SET name = ?, summary = ?, company = ?, role = ?, city = ?, school = ?, phone = ?,
+           met_at = ?, met_date = ?, relationship = ?, instagram = ?, linkedin = ?,
+           twitter = ?, website = ?, follow_up_date = ?, updated_at = ?
        WHERE id = ?`,
       draft.name.trim(),
       cleanValue(draft.summary),
@@ -396,9 +478,14 @@ async function updatePerson(personId: string, draft: PersonDraft) {
       cleanValue(draft.role),
       cleanValue(draft.city),
       cleanValue(draft.school),
+      cleanValue(draft.phone),
       cleanValue(draft.metAt),
       cleanValue(draft.metDate),
       draft.relationship,
+      cleanValue(draft.instagram),
+      cleanValue(draft.linkedin),
+      cleanValue(draft.twitter),
+      cleanValue(draft.website),
       cleanValue(draft.followUpDate),
       now,
       personId
@@ -442,12 +529,17 @@ async function deleteNote(noteId: string, personId: string) {
   });
 }
 
-async function renameTag(tagId: string, label: string) {
+async function renameTag(tagId: string, label: string, color: string) {
   const db = await getDatabase();
-  await db.runAsync(`UPDATE tag SET label = ? WHERE id = ?`, label.trim(), tagId);
+  await db.runAsync(
+    `UPDATE tag SET label = ?, color = ? WHERE id = ?`,
+    label.trim(),
+    color,
+    tagId
+  );
 }
 
-async function createTag(label: string) {
+async function createTag(label: string, color: string = DEFAULT_TAG_COLOR) {
   const db = await getDatabase();
   const now = nowIso();
   const cleanLabel = label.trim();
@@ -455,8 +547,8 @@ async function createTag(label: string) {
     return;
   }
 
-  const existing = await db.getFirstAsync<{ id: string; label: string }>(
-    `SELECT id, label FROM tag WHERE lower(label) = lower(?) LIMIT 1`,
+  const existing = await db.getFirstAsync<{ id: string; label: string; color: string | null }>(
+    `SELECT id, label, color FROM tag WHERE lower(label) = lower(?) LIMIT 1`,
     cleanLabel
   );
   if (existing) {
@@ -464,9 +556,10 @@ async function createTag(label: string) {
   }
 
   await db.runAsync(
-    `INSERT INTO tag (id, label, created_at) VALUES (?, ?, ?)`,
+    `INSERT INTO tag (id, label, color, created_at) VALUES (?, ?, ?, ?)`,
     randomUUID(),
     cleanLabel,
+    color,
     now
   );
   return cleanLabel;
@@ -481,6 +574,7 @@ export default function App() {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 940;
   const [people, setPeople] = useState<PersonRecord[]>([]);
+  const [tagCatalog, setTagCatalog] = useState<TagRow[]>([]);
   const [activeSection, setActiveSection] = useState<SectionType>('people');
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
@@ -488,7 +582,9 @@ export default function App() {
   const [editingPersonId, setEditingPersonId] = useState<string | null>(null);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [tagDraft, setTagDraft] = useState('');
+  const [tagColorDraft, setTagColorDraft] = useState<string>(DEFAULT_TAG_COLOR);
   const [newTagDraft, setNewTagDraft] = useState('');
+  const [newTagColor, setNewTagColor] = useState<string>(DEFAULT_TAG_COLOR);
   const [showTagForm, setShowTagForm] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
@@ -500,8 +596,9 @@ export default function App() {
 
   const refresh = async (preferredId?: string | null) => {
     try {
-      const nextPeople = await loadPeople();
+      const [nextPeople, nextTagCatalog] = await Promise.all([loadPeople(), loadTagCatalog()]);
       setPeople(nextPeople);
+      setTagCatalog(nextTagCatalog);
       setSelectedPersonId((current) => {
         if (preferredId && nextPeople.some((person) => person.id === preferredId)) {
           return preferredId;
@@ -541,6 +638,7 @@ export default function App() {
         person.role ?? '',
         person.city ?? '',
         person.school ?? '',
+        person.phone ?? '',
         person.tags.map((tag) => tag.label).join(' '),
         person.notes.map((note) => note.body).join(' '),
       ]
@@ -586,14 +684,26 @@ export default function App() {
   const allTags = useMemo(() => {
     const grouped = new Map<
       string,
-      { id: string; label: string; count: number; people: PersonRecord[] }
-    >();
+      { id: string; label: string; color: string; count: number; people: PersonRecord[] }
+    >(
+      tagCatalog.map((tag) => [
+        tag.id,
+        {
+          id: tag.id,
+          label: tag.label,
+          color: normalizeTagColor(tag.color),
+          count: 0,
+          people: [],
+        },
+      ])
+    );
 
     people.forEach((person) => {
       person.tags.forEach((tag) => {
         const current = grouped.get(tag.id) ?? {
           id: tag.id,
           label: tag.label,
+          color: normalizeTagColor(tag.color),
           count: 0,
           people: [],
         };
@@ -606,7 +716,7 @@ export default function App() {
     return Array.from(grouped.values()).sort((left, right) =>
       left.label.localeCompare(right.label)
     );
-  }, [people]);
+  }, [people, tagCatalog]);
 
   const filteredTags = useMemo(() => {
     const query = deferredSearchQuery.trim().toLowerCase();
@@ -669,6 +779,7 @@ export default function App() {
 
   useEffect(() => {
     setTagDraft(selectedTag?.label ?? '');
+    setTagColorDraft(selectedTag?.color ?? DEFAULT_TAG_COLOR);
   }, [selectedTag?.id]);
 
   useEffect(() => {
@@ -684,10 +795,20 @@ export default function App() {
         ['Role', selectedPerson.role ?? '-'],
         ['City', selectedPerson.city ?? '-'],
         ['School', selectedPerson.school ?? '-'],
+        ['Phone', selectedPerson.phone ?? '-'],
         ['Met at', selectedPerson.met_at ?? '-'],
         ['Met date', formatDate(selectedPerson.met_date)],
         ['Relationship', selectedPerson.relationship ?? '-'],
         ['Follow up', formatDate(selectedPerson.follow_up_date)],
+      ]
+    : [];
+
+  const socialCells = selectedPerson
+    ? [
+        ['Instagram', selectedPerson.instagram ?? '-'],
+        ['LinkedIn', selectedPerson.linkedin ?? '-'],
+        ['Twitter', selectedPerson.twitter ?? '-'],
+        ['Website', selectedPerson.website ?? '-'],
       ]
     : [];
 
@@ -752,19 +873,79 @@ export default function App() {
 
   const goBack = () => setMobileDetailOpen(false);
 
-  const availableTags = useMemo(() => allTags.map((t) => t.label), [allTags]);
+  const availableTags = useMemo<TagOption[]>(
+    () => allTags.map((tag) => ({ id: tag.id, label: tag.label, color: tag.color })),
+    [allTags]
+  );
 
-  const createPersonFormTag = async (label: string): Promise<string | null> => {
+  const createPersonFormTag = async (label: string, color: string = DEFAULT_TAG_COLOR): Promise<string | null> => {
     const trimmed = label.trim();
     if (!trimmed) return null;
     const existing = allTags.find((t) => t.label.toLowerCase() === trimmed.toLowerCase());
     if (existing) return existing.label;
     try {
-      await createTag(trimmed);
+      await createTag(trimmed, color);
       await refresh(selectedPersonId);
       return trimmed;
     } catch {
       return null;
+    }
+  };
+
+  const importContact = async () => {
+    if (Platform.OS === 'web') {
+      Alert.alert('Unavailable', 'Contact import is only available on iOS and Android.');
+      return;
+    }
+
+    try {
+      const permission = await Contacts.requestPermissionsAsync();
+      if (permission.status !== 'granted') {
+        Alert.alert('Permission needed', 'Allow contacts access to import a person.');
+        return;
+      }
+
+      const picked = await Contacts.presentContactPickerAsync();
+      if (!picked?.id) {
+        return;
+      }
+
+      const contact = await Contacts.getContactByIdAsync(picked.id, [
+        Contacts.Fields.Name,
+        Contacts.Fields.PhoneNumbers,
+        Contacts.Fields.Company,
+        Contacts.Fields.JobTitle,
+        Contacts.Fields.Addresses,
+      ]);
+
+      if (!contact?.name?.trim()) {
+        Alert.alert('Import failed', 'This contact does not have a usable name.');
+        return;
+      }
+
+      const primaryPhone =
+        contact.phoneNumbers?.find((entry) => entry.isPrimary)?.number ??
+        contact.phoneNumbers?.[0]?.number ??
+        '';
+      const primaryCity =
+        contact.addresses?.find((entry) => entry.city)?.city ??
+        contact.addresses?.[0]?.city ??
+        '';
+
+      setEditingPersonId(null);
+      setPersonDraft({
+        ...emptyPersonDraft,
+        name: contact.name,
+        company: contact.company ?? '',
+        role: contact.jobTitle ?? '',
+        city: primaryCity,
+        phone: primaryPhone,
+      });
+      setShowPersonForm(true);
+      setActiveSection('people');
+      setMobileDetailOpen(false);
+    } catch {
+      Alert.alert('Import failed', 'Orbit could not import that contact.');
     }
   };
 
@@ -777,9 +958,14 @@ export default function App() {
       role: person.role ?? '',
       city: person.city ?? '',
       school: person.school ?? '',
+      phone: person.phone ?? '',
       metAt: person.met_at ?? '',
       metDate: person.met_date ?? '',
       relationship: person.relationship ?? 'acquaintance',
+      instagram: person.instagram ?? '',
+      linkedin: person.linkedin ?? '',
+      twitter: person.twitter ?? '',
+      website: person.website ?? '',
       followUpDate: person.follow_up_date ?? '',
       tags: person.tags.map((tag) => tag.label),
     });
@@ -830,7 +1016,7 @@ export default function App() {
     }
 
     try {
-      await renameTag(selectedTag.id, tagDraft);
+      await renameTag(selectedTag.id, tagDraft, tagColorDraft);
       await refresh(selectedPersonId);
     } catch {
       Alert.alert('Database error', 'Orbit could not rename this tag.');
@@ -843,8 +1029,9 @@ export default function App() {
     }
 
     try {
-      await createTag(newTagDraft);
+      await createTag(newTagDraft, newTagColor);
       setNewTagDraft('');
+      setNewTagColor(DEFAULT_TAG_COLOR);
       setShowTagForm(false);
       await refresh(selectedPersonId);
     } catch {
@@ -902,7 +1089,7 @@ export default function App() {
 
           {activeSection === 'people' ? (
             <PeopleSection
-              availableTags={allTags.map((tag) => tag.label)}
+              availableTags={availableTags}
               createPersonFormTag={createPersonFormTag}
               editingNoteId={editingNoteId}
               editingPersonId={editingPersonId}
@@ -912,11 +1099,13 @@ export default function App() {
               mobileDetailOpen={mobileDetailOpen}
               noteDraft={noteDraft}
               onBack={goBack}
+              onImportContact={importContact}
               personDraft={personDraft}
               removeNote={removeNote}
               removePerson={removePerson}
               saveNote={saveNote}
               savePerson={savePerson}
+              socialCells={socialCells}
               selectedPerson={selectedPerson}
               selectedPersonId={selectedPersonId}
               startEditNote={startEditNote}
@@ -958,15 +1147,19 @@ export default function App() {
                 setActiveSection('people');
               }}
               onDeleteTag={removeTag}
+              onNewTagColorChange={setNewTagColor}
               onNewTagDraftChange={setNewTagDraft}
               onSelectTag={selectTag}
               onShowTagForm={setShowTagForm}
+              onTagColorDraftChange={setTagColorDraft}
               onTagDraftChange={setTagDraft}
               onTagSave={saveTag}
+              newTagColor={newTagColor}
               newTagDraft={newTagDraft}
               selectedTag={selectedTag}
               selectedTagId={selectedTagId}
               showTagForm={showTagForm}
+              tagColorDraft={tagColorDraft}
               tagDraft={tagDraft}
             />
           )}
@@ -999,8 +1192,8 @@ function PersonForm({
   editingPersonId,
   onSave,
 }: {
-  availableTags: string[];
-  onCreateTag: (label: string) => Promise<string | null>;
+  availableTags: TagOption[];
+  onCreateTag: (label: string, color?: string) => Promise<string | null>;
   draft: PersonDraft;
   setDraft: (fn: (current: PersonDraft) => PersonDraft) => void;
   editingPersonId: string | null;
@@ -1043,8 +1236,14 @@ function PersonForm({
           <Field label="City" value={draft.city} onChangeText={(v) => setDraft((c) => ({ ...c, city: v }))} />
         </View>
         <View style={styles.formPairCell}>
+          <Field label="Phone" value={draft.phone} onChangeText={(v) => setDraft((c) => ({ ...c, phone: v }))} />
+        </View>
+      </View>
+      <View style={styles.formPairRow}>
+        <View style={styles.formPairCell}>
           <Field label="Met at" value={draft.metAt} onChangeText={(v) => setDraft((c) => ({ ...c, metAt: v }))} />
         </View>
+        <View style={styles.formPairCell} />
       </View>
       <Pressable onPress={() => setShowMore((s) => !s)} style={styles.moreToggle}>
         <Text style={styles.moreToggleText}>{showMore ? '− Less details' : '+ More details'}</Text>
@@ -1054,11 +1253,31 @@ function PersonForm({
           <Field label="School" value={draft.school} onChangeText={(v) => setDraft((c) => ({ ...c, school: v }))} />
           <DateField label="Met date" value={draft.metDate} onChange={(v) => setDraft((c) => ({ ...c, metDate: v }))} />
           <DateField label="Follow up" value={draft.followUpDate} onChange={(v) => setDraft((c) => ({ ...c, followUpDate: v }))} />
+          <Field
+            label="Instagram"
+            value={draft.instagram}
+            onChangeText={(v) => setDraft((c) => ({ ...c, instagram: v }))}
+          />
+          <Field
+            label="LinkedIn"
+            value={draft.linkedin}
+            onChangeText={(v) => setDraft((c) => ({ ...c, linkedin: v }))}
+          />
+          <Field
+            label="Twitter"
+            value={draft.twitter}
+            onChangeText={(v) => setDraft((c) => ({ ...c, twitter: v }))}
+          />
+          <Field
+            label="Website"
+            value={draft.website}
+            onChangeText={(v) => setDraft((c) => ({ ...c, website: v }))}
+          />
           <TagMultiSelect
             availableTags={availableTags}
             label="Tags"
-            onCreateTag={async (label) => {
-              const created = await onCreateTag(label);
+            onCreateTag={async (label, color) => {
+              const created = await onCreateTag(label, color);
               if (!created) {
                 return null;
               }
@@ -1092,11 +1311,13 @@ function PeopleSection({
   mobileDetailOpen,
   noteDraft,
   onBack,
+  onImportContact,
   personDraft,
   removeNote,
   removePerson,
   saveNote,
   savePerson,
+  socialCells,
   selectedPerson,
   selectedPersonId,
   startEditNote,
@@ -1107,8 +1328,8 @@ function PeopleSection({
   setShowPersonForm,
   showPersonForm,
 }: {
-  availableTags: string[];
-  createPersonFormTag: (label: string) => Promise<string | null>;
+  availableTags: TagOption[];
+  createPersonFormTag: (label: string, color?: string) => Promise<string | null>;
   editingNoteId: string | null;
   editingPersonId: string | null;
   factCells: string[][];
@@ -1117,11 +1338,13 @@ function PeopleSection({
   mobileDetailOpen: boolean;
   noteDraft: NoteDraft;
   onBack: () => void;
+  onImportContact: () => void;
   personDraft: PersonDraft;
   removeNote: (noteId: string, personId: string) => void;
   removePerson: (personId: string) => void;
   saveNote: () => void;
   savePerson: () => void;
+  socialCells: string[][];
   selectedPerson: PersonRecord | null;
   selectedPersonId: string | null;
   startEditNote: (note: NoteRow) => void;
@@ -1155,19 +1378,23 @@ function PeopleSection({
             </View>
           ) : null}
 
-          <View style={styles.profileSection}>
-            <View style={styles.profileTop}>
-              <Avatar name={selectedPerson.name} pending={hasFollowUp(selectedPerson)} large />
-              <View style={styles.profileMeta}>
-                <Text style={styles.profileName}>{selectedPerson.name}</Text>
-                <Text style={styles.profileSubline}>{selectedPerson.summary ?? selectedPerson.role ?? 'No summary'}</Text>
+            <View style={styles.profileSection}>
+              <View style={styles.profileTop}>
+                <Avatar name={selectedPerson.name} pending={hasFollowUp(selectedPerson)} large />
+                <View style={styles.profileMeta}>
+                  <Text style={styles.profileName}>{selectedPerson.name}</Text>
+                  <Text style={styles.profileSubline}>{selectedPerson.summary ?? selectedPerson.role ?? 'No summary'}</Text>
+                </View>
+              </View>
+              <FactGrid cells={factCells} />
+              <View style={styles.subsectionBlock}>
+                <Text style={styles.sectionLabel}>Socials</Text>
+                <FactGrid cells={socialCells} />
+              </View>
+              <View style={styles.tagRow}>
+                {selectedPerson.tags.length > 0 ? selectedPerson.tags.map((tag) => <TagPill key={tag.id} color={tag.color} label={tag.label} />) : <Text style={styles.ghostText}>No tags</Text>}
               </View>
             </View>
-            <FactGrid cells={factCells} />
-            <View style={styles.tagRow}>
-              {selectedPerson.tags.length > 0 ? selectedPerson.tags.map((tag) => <TagPill key={tag.id} label={tag.label} />) : <Text style={styles.ghostText}>No tags</Text>}
-            </View>
-          </View>
 
           {showPersonForm ? (
             <PersonForm
@@ -1240,6 +1467,9 @@ function PeopleSection({
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionLabel}>Database</Text>
             <View style={styles.actionRow}>
+              <Pressable onPress={onImportContact} style={styles.ghostButton}>
+                <Text style={styles.ghostButtonText}>Import</Text>
+              </Pressable>
               {isDesktop && selectedPerson ? (
                 <>
                   <Pressable onPress={() => startEditPerson(selectedPerson)} style={styles.ghostButton}>
@@ -1408,34 +1638,42 @@ function TagsSection({
   onBack,
   onCreateTag,
   onDeleteTag,
+  onNewTagColorChange,
   onNewTagDraftChange,
   onOpenPerson,
   onSelectTag,
   onShowTagForm,
+  onTagColorDraftChange,
   onTagDraftChange,
   onTagSave,
+  newTagColor,
   newTagDraft,
   selectedTag,
   selectedTagId,
   showTagForm,
+  tagColorDraft,
   tagDraft,
 }: {
-  filteredTags: Array<{ id: string; label: string; count: number; people: PersonRecord[] }>;
+  filteredTags: Array<{ id: string; label: string; color: string; count: number; people: PersonRecord[] }>;
   isDesktop: boolean;
   mobileDetailOpen: boolean;
   onBack: () => void;
   onCreateTag: () => void;
   onDeleteTag: (tagId: string) => void;
+  onNewTagColorChange: (value: string) => void;
   onNewTagDraftChange: (value: string) => void;
   onOpenPerson: (personId: string) => void;
   onSelectTag: (tagId: string) => void;
   onShowTagForm: (value: (current: boolean) => boolean) => void;
+  onTagColorDraftChange: (value: string) => void;
   onTagDraftChange: (value: string) => void;
   onTagSave: () => void;
+  newTagColor: string;
   newTagDraft: string;
-  selectedTag: { id: string; label: string; count: number; people: PersonRecord[] } | null;
+  selectedTag: { id: string; label: string; color: string; count: number; people: PersonRecord[] } | null;
   selectedTagId: string | null;
   showTagForm: boolean;
+  tagColorDraft: string;
   tagDraft: string;
 }) {
   const showDetail = isDesktop || mobileDetailOpen;
@@ -1455,6 +1693,7 @@ function TagsSection({
             <View style={styles.formSection}>
               <Text style={styles.formHeading}>New tag</Text>
               <Field label="Label" value={newTagDraft} onChangeText={onNewTagDraftChange} />
+              <ColorPicker label="Color" selectedColor={newTagColor} onChange={onNewTagColorChange} />
               <Pressable onPress={onCreateTag} style={styles.primaryButton}>
                 <Text style={styles.primaryButtonText}>Create tag</Text>
               </Pressable>
@@ -1471,7 +1710,7 @@ function TagsSection({
             ) : (
               filteredTags.map((tag) => (
                 <Pressable key={tag.id} onPress={() => onSelectTag(tag.id)} style={[styles.tagListRow, tag.id === selectedTagId && styles.rowActive]}>
-                  <TagPill label={tag.label} />
+                  <TagPill color={tag.color} label={tag.label} />
                   <Text style={styles.inlineMuted}>{tag.count} people</Text>
                 </Pressable>
               ))
@@ -1502,6 +1741,7 @@ function TagsSection({
 
               <View style={styles.profileSection}>
                 <Field label="Label" value={tagDraft} onChangeText={onTagDraftChange} />
+                <ColorPicker label="Color" selectedColor={tagColorDraft} onChange={onTagColorDraftChange} />
                 <Text style={styles.profileSubline}>{selectedTag.count} linked people</Text>
                 {isDesktop ? (
                   <View style={styles.noteActionRow}>
@@ -1933,14 +2173,15 @@ function TagMultiSelect({
   onCreateTag,
   selectedTags,
 }: {
-  availableTags: string[];
+  availableTags: TagOption[];
   label: string;
   onChange: (tags: string[]) => void;
-  onCreateTag: (label: string) => Promise<string | null>;
+  onCreateTag: (label: string, color?: string) => Promise<string | null>;
   selectedTags: string[];
 }) {
   const [open, setOpen] = useState(false);
   const [newTag, setNewTag] = useState('');
+  const [newTagColor, setNewTagColor] = useState<string>(DEFAULT_TAG_COLOR);
 
   const toggleTag = (tag: string) => {
     onChange(
@@ -1957,7 +2198,13 @@ function TagMultiSelect({
         <View style={styles.tagChipWrap}>
           {selectedTags.length > 0 ? (
             selectedTags.map((tag) => (
-              <View key={tag} style={styles.selectedTagChip}>
+              <View
+                key={tag}
+                style={[
+                  styles.selectedTagChip,
+                  { backgroundColor: hexToRgba(availableTags.find((item) => item.label === tag)?.color ?? DEFAULT_TAG_COLOR, 0.18) },
+                ]}
+              >
                 <Text style={styles.selectedTagText}>{tag}</Text>
                 <Pressable onPress={() => onChange(selectedTags.filter((value) => value !== tag))} hitSlop={8}>
                   <Text style={styles.selectedTagRemove}>x</Text>
@@ -1974,12 +2221,15 @@ function TagMultiSelect({
         <View style={styles.tagDropdown}>
           <ScrollView nestedScrollEnabled style={styles.tagDropdownList}>
             {availableTags.map((tag) => {
-              const active = selectedTags.includes(tag);
+              const active = selectedTags.includes(tag.label);
               return (
-                <Pressable key={tag} onPress={() => toggleTag(tag)} style={styles.tagDropdownItem}>
-                  <Text style={[styles.tagDropdownText, active && styles.tagDropdownTextActive]}>
-                    {tag}
-                  </Text>
+                <Pressable key={tag.id} onPress={() => toggleTag(tag.label)} style={styles.tagDropdownItem}>
+                  <View style={styles.tagDropdownMeta}>
+                    <View style={[styles.tagColorDot, { backgroundColor: tag.color }]} />
+                    <Text style={[styles.tagDropdownText, active && styles.tagDropdownTextActive]}>
+                      {tag.label}
+                    </Text>
+                  </View>
                   {active ? <Text style={styles.tagDropdownCheck}>✓</Text> : null}
                 </Pressable>
               );
@@ -1999,14 +2249,16 @@ function TagMultiSelect({
                 if (!clean) {
                   return;
                 }
-                await onCreateTag(clean);
+                await onCreateTag(clean, newTagColor);
                 setNewTag('');
+                setNewTagColor(DEFAULT_TAG_COLOR);
               }}
               style={styles.ghostButton}
             >
               <Text style={styles.ghostButtonText}>Create</Text>
             </Pressable>
           </View>
+          <ColorPicker label="New tag color" selectedColor={newTagColor} onChange={setNewTagColor} />
         </View>
       ) : null}
     </View>
@@ -2032,10 +2284,45 @@ function TagChip({ label, active, onPress }: { label: string; active: boolean; o
   );
 }
 
-function TagPill({ label }: { label: string }) {
+function TagPill({ color, label }: { color?: string | null; label: string }) {
+  const resolvedColor = normalizeTagColor(color);
   return (
-    <View style={styles.tagPill}>
-      <Text style={styles.tagPillText}>{label}</Text>
+    <View style={[styles.tagPill, { backgroundColor: hexToRgba(resolvedColor, 0.14), borderColor: hexToRgba(resolvedColor, 0.34) }]}>
+      <View style={[styles.tagPillDot, { backgroundColor: resolvedColor }]} />
+      <Text style={[styles.tagPillText, { color: resolvedColor }]}>{label}</Text>
+    </View>
+  );
+}
+
+function ColorPicker({
+  label,
+  onChange,
+  selectedColor,
+}: {
+  label: string;
+  onChange: (value: string) => void;
+  selectedColor: string;
+}) {
+  return (
+    <View style={styles.field}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <View style={styles.colorPickerRow}>
+        {TAG_COLORS.map((color) => {
+          const active = color === selectedColor;
+          return (
+            <Pressable
+              key={color}
+              onPress={() => onChange(color)}
+              style={[
+                styles.colorSwatch,
+                { backgroundColor: color, borderColor: active ? '#e8e8f0' : 'rgba(255,255,255,0.08)' },
+              ]}
+            >
+              {active ? <Text style={styles.colorSwatchCheck}>✓</Text> : null}
+            </Pressable>
+          );
+        })}
+      </View>
     </View>
   );
 }
@@ -2343,6 +2630,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
+  tagDropdownMeta: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  tagColorDot: {
+    borderRadius: 4,
+    height: 8,
+    width: 8,
+  },
   tagDropdownText: {
     color: '#a0a0b0',
     fontSize: 13,
@@ -2591,13 +2888,20 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   tagPill: {
-    backgroundColor: '#141418',
+    alignItems: 'center',
     borderRadius: 4,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 6,
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
+  tagPillDot: {
+    borderRadius: 4,
+    height: 6,
+    width: 6,
+  },
   tagPillText: {
-    color: '#7a7a8a',
     fontSize: 12,
     fontWeight: '400',
   },
@@ -2633,6 +2937,27 @@ const styles = StyleSheet.create({
   notesSection: {
     paddingHorizontal: 24,
     paddingVertical: 16,
+  },
+  subsectionBlock: {
+    marginTop: 16,
+  },
+  colorPickerRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  colorSwatch: {
+    alignItems: 'center',
+    borderRadius: 10,
+    borderWidth: 1,
+    height: 28,
+    justifyContent: 'center',
+    width: 28,
+  },
+  colorSwatchCheck: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '600',
   },
   noteListRow: {
     borderBottomColor: '#1a1a20',
