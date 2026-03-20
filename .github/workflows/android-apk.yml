@@ -39,10 +39,15 @@ jobs:
         working-directory: android
         run: ./gradlew assembleRelease
 
-      - name: Read app version
+      - name: Resolve artifact version
         id: version
         run: |
-          echo "value=$(node -p "require('./app.json').expo.version")" >> "$GITHUB_OUTPUT"
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="$(node -p "require('./app.json').expo.version")"
+          fi
+          echo "value=${VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Rename APK
         run: |
