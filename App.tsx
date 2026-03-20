@@ -30,43 +30,55 @@ import { SvgXml } from 'react-native-svg';
 
 const ORBIT_LOGO_SVG = `<svg width="200" height="200" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <radialGradient id="planet" cx="34%" cy="29%" r="74%">
-      <stop offset="0%"   stop-color="#8878d8"/>
-      <stop offset="22%"  stop-color="#6858b8"/>
-      <stop offset="60%"  stop-color="#3a2d80"/>
-      <stop offset="100%" stop-color="#120c2a"/>
-    </radialGradient>
-    <linearGradient id="ringFront" gradientUnits="userSpaceOnUse" x1="6" y1="60" x2="114" y2="60">
-      <stop offset="0%"   stop-color="#5a48b8" stop-opacity="0"/>
-      <stop offset="14%"  stop-color="#a090f8" stop-opacity="1"/>
-      <stop offset="50%"  stop-color="#ccc0ff"/>
-      <stop offset="86%"  stop-color="#a090f8" stop-opacity="1"/>
-      <stop offset="100%" stop-color="#5a48b8" stop-opacity="0"/>
+    <linearGradient id="tile" x1="10" y1="10" x2="110" y2="110" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#11121f"/>
+      <stop offset="54%" stop-color="#0b0c15"/>
+      <stop offset="100%" stop-color="#07080f"/>
     </linearGradient>
-    <linearGradient id="ringBack" gradientUnits="userSpaceOnUse" x1="6" y1="60" x2="114" y2="60">
-      <stop offset="0%"   stop-color="#2e2060" stop-opacity="0"/>
-      <stop offset="14%"  stop-color="#5048a0" stop-opacity="0.65"/>
-      <stop offset="50%"  stop-color="#6858b8" stop-opacity="0.6"/>
-      <stop offset="86%"  stop-color="#5048a0" stop-opacity="0.65"/>
-      <stop offset="100%" stop-color="#2e2060" stop-opacity="0"/>
+    <linearGradient id="planet" x1="40" y1="36" x2="74" y2="84" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#d9deef"/>
+      <stop offset="100%" stop-color="#b8bfd8"/>
     </linearGradient>
-    <clipPath id="top"><rect x="0" y="0"  width="120" height="60"/></clipPath>
-    <clipPath id="bot"><rect x="0" y="60" width="120" height="60"/></clipPath>
-    <clipPath id="planetClip"><circle cx="60" cy="60" r="27"/></clipPath>
+    <linearGradient id="ring" x1="20" y1="77" x2="96" y2="43" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#4f58c7"/>
+      <stop offset="100%" stop-color="#6672ea"/>
+    </linearGradient>
+    <mask id="planetHole">
+      <rect width="120" height="120" fill="#ffffff"/>
+      <ellipse cx="60" cy="62" rx="24" ry="28" fill="#000000"/>
+    </mask>
   </defs>
-  <ellipse cx="60" cy="60" rx="56" ry="14" transform="rotate(-22 60 60)" fill="none" stroke="url(#ringBack)" stroke-width="5" clip-path="url(#top)"/>
-  <ellipse cx="60" cy="60" rx="44" ry="11" transform="rotate(-22 60 60)" fill="none" stroke="url(#ringBack)" stroke-width="7.5" clip-path="url(#top)" opacity="0.9"/>
-  <circle cx="60" cy="60" r="27" fill="url(#planet)"/>
-  <g clip-path="url(#planetClip)" fill="none" stroke="#000000" transform="rotate(-22 60 60)">
-    <path d="M 33 47 Q 60 44 87 47" stroke-width="1.8" opacity="0.13"/>
-    <path d="M 34 53 Q 60 51 86 53" stroke-width="2.2" opacity="0.16"/>
-    <path d="M 33 60 Q 60 60 87 60" stroke-width="1.5" opacity="0.12"/>
-    <path d="M 34 67 Q 60 69 86 67" stroke-width="2.2" opacity="0.16"/>
-    <path d="M 33 73 Q 60 76 87 73" stroke-width="1.8" opacity="0.13"/>
+  <rect x="8" y="8" width="104" height="104" rx="28" fill="url(#tile)"/>
+  <g fill="#c8d0ff" opacity="0.42">
+    <path d="M27.8 27.2l0.8 2.1 2.1 0.8-2.1 0.8-0.8 2.1-0.8-2.1-2.1-0.8 2.1-0.8z"/>
+    <path d="M91.7 23.5l0.7 1.8 1.8 0.7-1.8 0.7-0.7 1.8-0.7-1.8-1.8-0.7 1.8-0.7z"/>
+    <path d="M95.8 81.1l0.8 2 2 0.8-2 0.8-0.8 2-0.8-2-2-0.8 2-0.8z"/>
+    <path d="M41.6 92.2l0.6 1.6 1.6 0.6-1.6 0.6-0.6 1.6-0.6-1.6-1.6-0.6 1.6-0.6z"/>
   </g>
-  <circle cx="60" cy="60" r="27" fill="none" stroke="#9080f0" stroke-width="1.2" opacity="0.3"/>
-  <ellipse cx="60" cy="60" rx="44" ry="11" transform="rotate(-22 60 60)" fill="none" stroke="url(#ringFront)" stroke-width="7.5" clip-path="url(#bot)"/>
-  <ellipse cx="60" cy="60" rx="56" ry="14" transform="rotate(-22 60 60)" fill="none" stroke="url(#ringFront)" stroke-width="5" clip-path="url(#bot)"/>
+  <g fill="#ffffff" opacity="0.2">
+    <path d="M38 21.8l0.5 1.3 1.3 0.5-1.3 0.5-0.5 1.3-0.5-1.3-1.3-0.5 1.3-0.5z"/>
+    <path d="M82.9 36.8l0.45 1.15 1.15 0.45-1.15 0.45-0.45 1.15-0.45-1.15-1.15-0.45 1.15-0.45z"/>
+    <path d="M28 85.8l0.5 1.3 1.3 0.5-1.3 0.5-0.5 1.3-0.5-1.3-1.3-0.5 1.3-0.5z"/>
+  </g>
+  <g transform="rotate(24 60 60)">
+    <ellipse cx="60" cy="63" rx="33" ry="11.2" fill="none" stroke="url(#ring)" stroke-width="8" mask="url(#planetHole)"/>
+  </g>
+  <ellipse cx="60" cy="62" rx="24" ry="28" fill="url(#planet)"/>
+  <ellipse cx="53.5" cy="49.5" rx="10" ry="7" fill="#ffffff" opacity="0.12"/>
+  <g transform="rotate(24 60 60)">
+    <ellipse
+      cx="60"
+      cy="63"
+      rx="33"
+      ry="11.2"
+      fill="none"
+      stroke="url(#ring)"
+      stroke-width="8"
+      stroke-linecap="round"
+      stroke-dasharray="58 150"
+      stroke-dashoffset="-76"
+    />
+  </g>
 </svg>`;
 
 const RELATIONSHIPS = ['close', 'acquaintance', 'just met'] as const;
@@ -92,6 +104,7 @@ type PersonRow = {
   met_date: string | null;
   relationship: Relationship | null;
   photo_uri: string | null;
+  email: string | null;
   instagram: string | null;
   linkedin: string | null;
   twitter: string | null;
@@ -148,6 +161,7 @@ type PersonDraft = {
   metAt: string;
   metDate: string;
   relationship: Relationship;
+  email: string;
   instagram: string;
   linkedin: string;
   twitter: string;
@@ -175,6 +189,7 @@ const emptyPersonDraft: PersonDraft = {
   metAt: '',
   metDate: '',
   relationship: 'acquaintance',
+  email: '',
   instagram: '',
   linkedin: '',
   twitter: '',
@@ -210,6 +225,7 @@ async function getDatabase() {
           met_date TEXT,
           relationship TEXT CHECK(relationship IN ('close','acquaintance','just met')),
           photo_uri TEXT,
+          email TEXT,
           instagram TEXT,
           linkedin TEXT,
           twitter TEXT,
@@ -239,7 +255,7 @@ async function getDatabase() {
           PRIMARY KEY (person_id, tag_id)
         );
       `);
-      for (const column of ['instagram', 'linkedin', 'twitter', 'website']) {
+      for (const column of ['email', 'instagram', 'linkedin', 'twitter', 'website']) {
         try {
           await db.execAsync(`ALTER TABLE person ADD COLUMN ${column} TEXT;`);
         } catch {}
@@ -268,6 +284,10 @@ function nowIso() {
 function cleanValue(value: string) {
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
+}
+
+function buildCells(entries: Array<[string, string | null | undefined]>) {
+  return entries.filter(([, value]) => Boolean(value && value.trim())) as string[][];
 }
 
 function formatDate(value: string | null, compact = false) {
@@ -359,9 +379,9 @@ async function insertPerson(draft: PersonDraft) {
     await tx.runAsync(
       `INSERT INTO person (
         id, name, summary, company, role, city, school, phone, met_at, met_date,
-        relationship, photo_uri, instagram, linkedin, twitter, website,
+        relationship, photo_uri, email, instagram, linkedin, twitter, website,
         follow_up_date, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       personId,
       draft.name.trim(),
       cleanValue(draft.summary),
@@ -374,6 +394,7 @@ async function insertPerson(draft: PersonDraft) {
       cleanValue(draft.metDate),
       draft.relationship,
       null,
+      cleanValue(draft.email),
       cleanValue(draft.instagram),
       cleanValue(draft.linkedin),
       cleanValue(draft.twitter),
@@ -469,7 +490,7 @@ async function updatePerson(personId: string, draft: PersonDraft) {
     await tx.runAsync(
       `UPDATE person
        SET name = ?, summary = ?, company = ?, role = ?, city = ?, school = ?, phone = ?,
-           met_at = ?, met_date = ?, relationship = ?, instagram = ?, linkedin = ?,
+           met_at = ?, met_date = ?, relationship = ?, email = ?, instagram = ?, linkedin = ?,
            twitter = ?, website = ?, follow_up_date = ?, updated_at = ?
        WHERE id = ?`,
       draft.name.trim(),
@@ -482,6 +503,7 @@ async function updatePerson(personId: string, draft: PersonDraft) {
       cleanValue(draft.metAt),
       cleanValue(draft.metDate),
       draft.relationship,
+      cleanValue(draft.email),
       cleanValue(draft.instagram),
       cleanValue(draft.linkedin),
       cleanValue(draft.twitter),
@@ -639,6 +661,7 @@ export default function App() {
         person.city ?? '',
         person.school ?? '',
         person.phone ?? '',
+        person.email ?? '',
         person.tags.map((tag) => tag.label).join(' '),
         person.notes.map((note) => note.body).join(' '),
       ]
@@ -790,26 +813,27 @@ export default function App() {
   }, [activeSection, people.length]);
 
   const factCells = selectedPerson
-    ? [
-        ['Company', selectedPerson.company ?? '-'],
-        ['Role', selectedPerson.role ?? '-'],
-        ['City', selectedPerson.city ?? '-'],
-        ['School', selectedPerson.school ?? '-'],
-        ['Phone', selectedPerson.phone ?? '-'],
-        ['Met at', selectedPerson.met_at ?? '-'],
-        ['Met date', formatDate(selectedPerson.met_date)],
-        ['Relationship', selectedPerson.relationship ?? '-'],
-        ['Follow up', formatDate(selectedPerson.follow_up_date)],
-      ]
+    ? buildCells([
+        ['Company', selectedPerson.company],
+        ['Role', selectedPerson.role],
+        ['City', selectedPerson.city],
+        ['School', selectedPerson.school],
+        ['Phone', selectedPerson.phone],
+        ['Met at', selectedPerson.met_at],
+        ['Met date', selectedPerson.met_date ? formatDate(selectedPerson.met_date) : null],
+        ['Relationship', selectedPerson.relationship],
+        ['Follow up', selectedPerson.follow_up_date ? formatDate(selectedPerson.follow_up_date) : null],
+      ])
     : [];
 
   const socialCells = selectedPerson
-    ? [
-        ['Instagram', selectedPerson.instagram ?? '-'],
-        ['LinkedIn', selectedPerson.linkedin ?? '-'],
-        ['Twitter', selectedPerson.twitter ?? '-'],
-        ['Website', selectedPerson.website ?? '-'],
-      ]
+    ? buildCells([
+        ['Email', selectedPerson.email],
+        ['Instagram', selectedPerson.instagram],
+        ['LinkedIn', selectedPerson.linkedin],
+        ['Twitter', selectedPerson.twitter],
+        ['Website', selectedPerson.website],
+      ])
     : [];
 
   const savePerson = async () => {
@@ -912,6 +936,7 @@ export default function App() {
 
       const contact = await Contacts.getContactByIdAsync(picked.id, [
         Contacts.Fields.Name,
+        Contacts.Fields.Emails,
         Contacts.Fields.PhoneNumbers,
         Contacts.Fields.Company,
         Contacts.Fields.JobTitle,
@@ -927,6 +952,10 @@ export default function App() {
         contact.phoneNumbers?.find((entry) => entry.isPrimary)?.number ??
         contact.phoneNumbers?.[0]?.number ??
         '';
+      const primaryEmail =
+        contact.emails?.find((entry) => entry.isPrimary)?.email ??
+        contact.emails?.[0]?.email ??
+        '';
       const primaryCity =
         contact.addresses?.find((entry) => entry.city)?.city ??
         contact.addresses?.[0]?.city ??
@@ -940,6 +969,7 @@ export default function App() {
         role: contact.jobTitle ?? '',
         city: primaryCity,
         phone: primaryPhone,
+        email: primaryEmail,
       });
       setShowPersonForm(true);
       setActiveSection('people');
@@ -962,6 +992,7 @@ export default function App() {
       metAt: person.met_at ?? '',
       metDate: person.met_date ?? '',
       relationship: person.relationship ?? 'acquaintance',
+      email: person.email ?? '',
       instagram: person.instagram ?? '',
       linkedin: person.linkedin ?? '',
       twitter: person.twitter ?? '',
@@ -1254,6 +1285,11 @@ function PersonForm({
           <DateField label="Met date" value={draft.metDate} onChange={(v) => setDraft((c) => ({ ...c, metDate: v }))} />
           <DateField label="Follow up" value={draft.followUpDate} onChange={(v) => setDraft((c) => ({ ...c, followUpDate: v }))} />
           <Field
+            label="Email"
+            value={draft.email}
+            onChangeText={(v) => setDraft((c) => ({ ...c, email: v }))}
+          />
+          <Field
             label="Instagram"
             value={draft.instagram}
             onChangeText={(v) => setDraft((c) => ({ ...c, instagram: v }))}
@@ -1386,11 +1422,13 @@ function PeopleSection({
                   <Text style={styles.profileSubline}>{selectedPerson.summary ?? selectedPerson.role ?? 'No summary'}</Text>
                 </View>
               </View>
-              <FactGrid cells={factCells} />
-              <View style={styles.subsectionBlock}>
-                <Text style={styles.sectionLabel}>Socials</Text>
-                <FactGrid cells={socialCells} />
-              </View>
+              {factCells.length > 0 ? <FactGrid cells={factCells} /> : null}
+              {socialCells.length > 0 ? (
+                <View style={styles.subsectionBlock}>
+                  <Text style={styles.sectionLabel}>Socials</Text>
+                  <FactGrid cells={socialCells} />
+                </View>
+              ) : null}
               <View style={styles.tagRow}>
                 {selectedPerson.tags.length > 0 ? selectedPerson.tags.map((tag) => <TagPill key={tag.id} color={tag.color} label={tag.label} />) : <Text style={styles.ghostText}>No tags</Text>}
               </View>

@@ -1,0 +1,52 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="tile" x1="96" y1="96" x2="928" y2="928" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#11121f"/>
+      <stop offset="54%" stop-color="#0b0c15"/>
+      <stop offset="100%" stop-color="#07080f"/>
+    </linearGradient>
+    <linearGradient id="planet" x1="338" y1="300" x2="650" y2="734" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#d9deef"/>
+      <stop offset="100%" stop-color="#b8bfd8"/>
+    </linearGradient>
+    <linearGradient id="ring" x1="170" y1="692" x2="832" y2="398" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#4f58c7"/>
+      <stop offset="100%" stop-color="#6672ea"/>
+    </linearGradient>
+    <mask id="planetHole">
+      <rect width="1024" height="1024" fill="#ffffff"/>
+      <ellipse cx="512" cy="528" rx="246" ry="286" fill="#000000"/>
+    </mask>
+  </defs>
+  <rect x="48" y="48" width="928" height="928" rx="258" fill="url(#tile)"/>
+  <g fill="#c8d0ff" opacity="0.42">
+    <path d="M236 218l8 22 22 8-22 8-8 22-8-22-22-8 22-8z"/>
+    <path d="M814 180l7 19 19 7-19 7-7 19-7-19-19-7 19-7z"/>
+    <path d="M850 714l8 21 21 8-21 8-8 21-8-21-21-8 21-8z"/>
+    <path d="M349 816l6 16 16 6-16 6-6 16-6-16-16-6 16-6z"/>
+  </g>
+  <g fill="#ffffff" opacity="0.2">
+    <path d="M322 174l5 13 13 5-13 5-5 13-5-13-13-5 13-5z"/>
+    <path d="M744 299l4 11 11 4-11 4-4 11-4-11-11-4 11-4z"/>
+    <path d="M238 772l5 13 13 5-13 5-5 13-5-13-13-5 13-5z"/>
+  </g>
+  <g transform="rotate(24 512 512)">
+    <ellipse cx="512" cy="542" rx="334" ry="114" fill="none" stroke="url(#ring)" stroke-width="82" mask="url(#planetHole)"/>
+  </g>
+  <ellipse cx="512" cy="528" rx="246" ry="286" fill="url(#planet)"/>
+  <ellipse cx="450" cy="404" rx="100" ry="70" fill="#ffffff" opacity="0.12"/>
+  <g transform="rotate(24 512 512)">
+    <ellipse
+      cx="512"
+      cy="542"
+      rx="334"
+      ry="114"
+      fill="none"
+      stroke="url(#ring)"
+      stroke-width="82"
+      stroke-linecap="round"
+      stroke-dasharray="586 1512"
+      stroke-dashoffset="-772"
+    />
+  </g>
+</svg>
