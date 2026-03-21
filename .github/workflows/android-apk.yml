@@ -35,9 +35,21 @@ jobs:
       - name: Prebuild Android project
         run: npx expo prebuild --platform android --non-interactive --clean
 
+      - name: Decode Android upload keystore
+        shell: bash
+        run: |
+          echo "${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}" | base64 --decode > android/app/upload-keystore.jks
+
       - name: Build release APK and AAB
         working-directory: android
-        run: ./gradlew assembleRelease bundleRelease
+        run: >
+          ./gradlew
+          assembleRelease
+          bundleRelease
+          -Pandroid.injected.signing.store.file=app/upload-keystore.jks
+          -Pandroid.injected.signing.store.password="${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}"
+          -Pandroid.injected.signing.key.alias="${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}"
+          -Pandroid.injected.signing.key.password="${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}"
 
       - name: Resolve artifact version
         id: version
