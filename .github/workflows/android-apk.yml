@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Android Artifacts
 
 on:
   workflow_dispatch:
@@ -7,7 +7,7 @@ on:
       - "v*"
 
 jobs:
-  build-apk:
+  build-android:
     runs-on: ubuntu-latest
 
     steps:
@@ -35,9 +35,9 @@ jobs:
       - name: Prebuild Android project
         run: npx expo prebuild --platform android --non-interactive --clean
 
-      - name: Build release APK
+      - name: Build release APK and AAB
         working-directory: android
-        run: ./gradlew assembleRelease
+        run: ./gradlew assembleRelease bundleRelease
 
       - name: Resolve artifact version
         id: version
@@ -49,14 +49,15 @@ jobs:
           fi
           echo "value=${VERSION}" >> "$GITHUB_OUTPUT"
 
-      - name: Rename APK
+      - name: Collect Android artifacts
         run: |
           mkdir -p artifacts
           cp android/app/build/outputs/apk/release/app-release.apk "artifacts/orbit-${{ steps.version.outputs.value }}-release.apk"
+          cp android/app/build/outputs/bundle/release/app-release.aab "artifacts/orbit-${{ steps.version.outputs.value }}-release.aab"
 
-      - name: Upload APK artifact
+      - name: Upload Android artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: orbit-apk-${{ steps.version.outputs.value }}
-          path: artifacts/*.apk
+          name: orbit-android-${{ steps.version.outputs.value }}
+          path: artifacts/*
           if-no-files-found: error
