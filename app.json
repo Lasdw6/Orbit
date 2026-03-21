@@ -13,16 +13,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.orbit.app",
-      "infoPlist": {
-        "NSContactsUsageDescription": "Allow Orbit to import people from your contacts."
-      }
+      "bundleIdentifier": "com.orbit.app"
     },
     "android": {
       "package": "com.orbit.app",
-      "permissions": [
-        "READ_CONTACTS"
-      ],
       "adaptiveIcon": {
         "backgroundColor": "#0e0e12",
         "foregroundImage": "./assets/android-icon-foreground.png",

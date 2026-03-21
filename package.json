@@ -11,7 +11,6 @@
   "dependencies": {
     "@react-native-community/datetimepicker": "8.4.4",
     "expo": "^54.0.0",
-    "expo-contacts": "~15.0.11",
     "expo-crypto": "~15.0.8",
     "expo-sqlite": "~16.0.10",
     "expo-status-bar": "~3.0.9",

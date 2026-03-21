@@ -7,6 +7,7 @@ Orbit is a minimal personal CRM built with Expo and React Native. It stores peop
 - Local-first people records
 - Structured meeting notes plus freeform notes
 - Single-screen workflow intended for fast entry
+- No account, sync, or contacts permission required
 
 ## Run
 

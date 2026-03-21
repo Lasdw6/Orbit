@@ -1,5 +1,4 @@
 import { randomUUID } from 'expo-crypto';
-import * as Contacts from 'expo-contacts';
 import { BRIGHT_STARS, CONSTELLATION_LINES, normalizeRA } from './starData';
 import * as SQLite from 'expo-sqlite';
 import { StatusBar } from 'expo-status-bar';
@@ -916,69 +915,6 @@ export default function App() {
     }
   };
 
-  const importContact = async () => {
-    if (Platform.OS === 'web') {
-      Alert.alert('Unavailable', 'Contact import is only available on iOS and Android.');
-      return;
-    }
-
-    try {
-      const permission = await Contacts.requestPermissionsAsync();
-      if (permission.status !== 'granted') {
-        Alert.alert('Permission needed', 'Allow contacts access to import a person.');
-        return;
-      }
-
-      const picked = await Contacts.presentContactPickerAsync();
-      if (!picked?.id) {
-        return;
-      }
-
-      const contact = await Contacts.getContactByIdAsync(picked.id, [
-        Contacts.Fields.Name,
-        Contacts.Fields.Emails,
-        Contacts.Fields.PhoneNumbers,
-        Contacts.Fields.Company,
-        Contacts.Fields.JobTitle,
-        Contacts.Fields.Addresses,
-      ]);
-
-      if (!contact?.name?.trim()) {
-        Alert.alert('Import failed', 'This contact does not have a usable name.');
-        return;
-      }
-
-      const primaryPhone =
-        contact.phoneNumbers?.find((entry) => entry.isPrimary)?.number ??
-        contact.phoneNumbers?.[0]?.number ??
-        '';
-      const primaryEmail =
-        contact.emails?.find((entry) => entry.isPrimary)?.email ??
-        contact.emails?.[0]?.email ??
-        '';
-      const primaryCity =
-        contact.addresses?.find((entry) => entry.city)?.city ??
-        contact.addresses?.[0]?.city ??
-        '';
-
-      setEditingPersonId(null);
-      setPersonDraft({
-        ...emptyPersonDraft,
-        name: contact.name,
-        company: contact.company ?? '',
-        role: contact.jobTitle ?? '',
-        city: primaryCity,
-        phone: primaryPhone,
-        email: primaryEmail,
-      });
-      setShowPersonForm(true);
-      setActiveSection('people');
-      setMobileDetailOpen(false);
-    } catch {
-      Alert.alert('Import failed', 'Orbit could not import that contact.');
-    }
-  };
-
   const startEditPerson = (person: PersonRecord) => {
     setEditingPersonId(person.id);
     setPersonDraft({
@@ -1130,7 +1066,6 @@ export default function App() {
               mobileDetailOpen={mobileDetailOpen}
               noteDraft={noteDraft}
               onBack={goBack}
-              onImportContact={importContact}
               personDraft={personDraft}
               removeNote={removeNote}
               removePerson={removePerson}
@@ -1347,7 +1282,6 @@ function PeopleSection({
   mobileDetailOpen,
   noteDraft,
   onBack,
-  onImportContact,
   personDraft,
   removeNote,
   removePerson,
@@ -1374,7 +1308,6 @@ function PeopleSection({
   mobileDetailOpen: boolean;
   noteDraft: NoteDraft;
   onBack: () => void;
-  onImportContact: () => void;
   personDraft: PersonDraft;
   removeNote: (noteId: string, personId: string) => void;
   removePerson: (personId: string) => void;
@@ -1505,9 +1438,6 @@ function PeopleSection({
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionLabel}>Database</Text>
             <View style={styles.actionRow}>
-              <Pressable onPress={onImportContact} style={styles.ghostButton}>
-                <Text style={styles.ghostButtonText}>Import</Text>
-              </Pressable>
               {isDesktop && selectedPerson ? (
                 <>
                   <Pressable onPress={() => startEditPerson(selectedPerson)} style={styles.ghostButton}>
