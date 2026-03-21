@@ -1,0 +1,45 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="planet" x1="356" y1="280" x2="676" y2="742" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#d9deef"/>
+      <stop offset="100%" stop-color="#b8bfd8"/>
+    </linearGradient>
+    <linearGradient id="ring" x1="210" y1="706" x2="834" y2="424" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#4f58c7"/>
+      <stop offset="100%" stop-color="#6672ea"/>
+    </linearGradient>
+    <mask id="planetHole">
+      <rect width="1024" height="1024" fill="#ffffff"/>
+      <ellipse cx="512" cy="534" rx="214" ry="250" fill="#000000"/>
+    </mask>
+  </defs>
+  <g fill="#c8d0ff" opacity="0.34">
+    <path d="M246 248l8 22 22 8-22 8-8 22-8-22-22-8 22-8z"/>
+    <path d="M794 210l7 19 19 7-19 7-7 19-7-19-19-7 19-7z"/>
+    <path d="M812 744l8 21 21 8-21 8-8 21-8-21-21-8 21-8z"/>
+    <path d="M332 786l6 16 16 6-16 6-6 16-6-16-16-6 16-6z"/>
+  </g>
+  <g fill="#ffffff" opacity="0.18">
+    <path d="M330 216l5 13 13 5-13 5-5 13-5-13-13-5 13-5z"/>
+    <path d="M726 320l4 11 11 4-11 4-4 11-4-11-11-4 11-4z"/>
+  </g>
+  <g transform="rotate(24 512 512)">
+    <ellipse cx="512" cy="546" rx="292" ry="100" fill="none" stroke="url(#ring)" stroke-width="72" mask="url(#planetHole)"/>
+  </g>
+  <ellipse cx="512" cy="534" rx="214" ry="250" fill="url(#planet)"/>
+  <ellipse cx="454" cy="424" rx="92" ry="64" fill="#ffffff" opacity="0.12"/>
+  <g transform="rotate(24 512 512)">
+    <ellipse
+      cx="512"
+      cy="546"
+      rx="292"
+      ry="100"
+      fill="none"
+      stroke="url(#ring)"
+      stroke-width="72"
+      stroke-linecap="round"
+      stroke-dasharray="512 1320"
+      stroke-dashoffset="-676"
+    />
+  </g>
+</svg>
