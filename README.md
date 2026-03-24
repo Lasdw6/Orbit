@@ -1,33 +1,26 @@
 # Orbit
 
-Orbit is a minimal personal CRM built with Expo and React Native. It stores people and meeting notes locally on-device.
+Orbit is a minimal Astro site for the Orbit landing page and privacy policy.
 
-## Features
+## Pages
 
-- Local-first people records
-- Structured meeting notes plus freeform notes
-- Single-screen workflow intended for fast entry
-- No account, sync, or contacts permission required
+- `/` landing page
+- `/privacy` privacy policy
 
 ## Run
 
 ```bash
 npm install
-npm start
+npm run dev
 ```
 
-## APK Build Workflow
+## Build
 
-This repo includes a GitHub Actions workflow at `.github/workflows/android-apk.yml`.
-
-- Trigger it manually from the Actions tab with `Build Android APK`
-- Or push a Git tag like `v1.0.0`
-- The workflow prebuilds Android, runs Gradle, and uploads an installable release APK as a workflow artifact
-
-The uploaded artifact name is based on the app version from `app.json`.
+```bash
+npm run build
+```
 
 ## Stack
 
-- Expo
-- React Native
-- Expo SQLite for local persistence
+- Astro
+- TypeScript

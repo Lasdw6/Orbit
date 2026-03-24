@@ -1,0 +1,142 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const effectiveDate = 'March 23, 2026';
+---
+
+<BaseLayout
+  title="Orbit Privacy Policy"
+  description="Privacy Policy for Orbit, a local-first personal CRM."
+>
+  <style>
+    .wrap {
+      width: min(calc(100% - 32px), 820px);
+      margin: 0 auto;
+    }
+
+    .card {
+      padding: 34px;
+    }
+
+    h1,
+    h2 {
+      line-height: 1.15;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(2.4rem, 5vw, 4rem);
+      letter-spacing: -0.04em;
+    }
+
+    h2 {
+      margin: 2rem 0 0.75rem;
+      font-size: 1.2rem;
+    }
+
+    p,
+    li {
+      color: var(--muted);
+      font-size: 1rem;
+    }
+
+    ul {
+      padding-left: 1.2rem;
+    }
+
+    .meta {
+      margin: 12px 0 1.5rem;
+      color: var(--accent-strong);
+    }
+
+    @media (max-width: 720px) {
+      .card {
+        padding: 24px;
+      }
+    }
+  </style>
+
+  <div class="wrap">
+    <section class="card panel">
+      <h1>Privacy Policy for Orbit</h1>
+      <p class="meta">Effective date: {effectiveDate}</p>
+
+      <p>
+        Orbit is a local-first personal CRM published by Lasdw. This Privacy Policy explains how
+        Orbit handles user and device data.
+      </p>
+
+      <h2>Summary</h2>
+      <p>
+        Orbit does not require an account. Orbit does not sell data. Orbit does not use analytics,
+        advertising SDKs, or cloud sync. The information you enter into the app is stored locally
+        on your device.
+      </p>
+
+      <h2>What data Orbit handles</h2>
+      <p>Orbit allows you to enter and store information such as:</p>
+      <ul>
+        <li>names and relationship notes</li>
+        <li>meeting notes and follow-up dates</li>
+        <li>
+          optional profile details you choose to enter, such as company, role, city, school, phone
+          number, email address, and social links
+        </li>
+        <li>tags and other organizational metadata you create inside the app</li>
+      </ul>
+
+      <h2>How data is collected</h2>
+      <p>
+        Orbit only handles information that you manually enter into the app. The current version of
+        Orbit does not import contacts from your device and does not request contacts permission.
+      </p>
+
+      <h2>How data is used</h2>
+      <p>
+        Data is used only to provide the app&apos;s core functionality, including storing people,
+        organizing notes, and helping you remember context for personal and professional
+        relationships.
+      </p>
+
+      <h2>Data sharing and transmission</h2>
+      <p>
+        Orbit does not transmit, share, or sell the personal information you enter to the
+        developer or to third parties. Data remains on your device unless you choose to export,
+        copy, back up, or share your device data through tools outside the app.
+      </p>
+
+      <h2>Data storage, retention, and deletion</h2>
+      <p>
+        Data is stored locally on your device using on-device app storage. Data remains on your
+        device until you edit or delete it, or until you uninstall the app or clear the app&apos;s
+        data through your device settings.
+      </p>
+
+      <h2>Security</h2>
+      <p>
+        Orbit uses the storage and security features provided by the operating system and app
+        sandbox. No method of storage is guaranteed to be perfectly secure, but Orbit is designed
+        to minimize exposure by keeping your data local to your device.
+      </p>
+
+      <h2>Children</h2>
+      <p>
+        Orbit is not designed for children under 13. If you do not intend to distribute the app to
+        children, do not include children under 13 in your Google Play target audience settings.
+      </p>
+
+      <h2>Changes to this policy</h2>
+      <p>
+        This Privacy Policy may be updated from time to time. Any updated version should be posted
+        at the same public URL used in the app store listing.
+      </p>
+
+      <h2>Contact</h2>
+      <p>
+        Developer: Lasdw<br />
+        App: Orbit<br />
+        Contact: <a href="mailto:vividh999@gmail.com">vividh999@gmail.com</a>
+      </p>
+    </section>
+  </div>
+</BaseLayout>

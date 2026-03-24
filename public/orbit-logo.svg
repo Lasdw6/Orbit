@@ -1,0 +1,92 @@
+<svg width="200" height="200" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+
+    <!-- Planet: sphere shading, light from top-left -->
+    <radialGradient id="planet" cx="34%" cy="29%" r="74%">
+      <stop offset="0%"   stop-color="#8878d8"/>
+      <stop offset="22%"  stop-color="#6858b8"/>
+      <stop offset="60%"  stop-color="#3a2d80"/>
+      <stop offset="100%" stop-color="#120c2a"/>
+    </radialGradient>
+
+    <!-- Ring front (below planet centre) — bright -->
+    <linearGradient id="ringFront" gradientUnits="userSpaceOnUse"
+                    x1="6" y1="60" x2="114" y2="60">
+      <stop offset="0%"   stop-color="#5a48b8" stop-opacity="0"/>
+      <stop offset="14%"  stop-color="#a090f8" stop-opacity="1"/>
+      <stop offset="50%"  stop-color="#ccc0ff"/>
+      <stop offset="86%"  stop-color="#a090f8" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#5a48b8" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- Ring back (above planet centre) — dimmer, shadowed -->
+    <linearGradient id="ringBack" gradientUnits="userSpaceOnUse"
+                    x1="6" y1="60" x2="114" y2="60">
+      <stop offset="0%"   stop-color="#2e2060" stop-opacity="0"/>
+      <stop offset="14%"  stop-color="#5048a0" stop-opacity="0.65"/>
+      <stop offset="50%"  stop-color="#6858b8" stop-opacity="0.6"/>
+      <stop offset="86%"  stop-color="#5048a0" stop-opacity="0.65"/>
+      <stop offset="100%" stop-color="#2e2060" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- Clips split at planet vertical centre -->
+    <clipPath id="top">
+      <rect x="0" y="0"  width="120" height="60"/>
+    </clipPath>
+    <clipPath id="bot">
+      <rect x="0" y="60" width="120" height="60"/>
+    </clipPath>
+
+    <!-- Clip to planet circle for bands -->
+    <clipPath id="planetClip">
+      <circle cx="60" cy="60" r="27"/>
+    </clipPath>
+
+  </defs>
+
+  <!-- ── Outer ring B, behind planet ── -->
+  <ellipse cx="60" cy="60" rx="56" ry="14"
+           transform="rotate(-22 60 60)"
+           fill="none" stroke="url(#ringBack)" stroke-width="5"
+           clip-path="url(#top)"/>
+
+  <!-- ── Inner ring A, behind planet ── -->
+  <ellipse cx="60" cy="60" rx="44" ry="11"
+           transform="rotate(-22 60 60)"
+           fill="none" stroke="url(#ringBack)" stroke-width="7.5"
+           clip-path="url(#top)" opacity="0.9"/>
+
+  <!-- ── Planet body ── -->
+  <circle cx="60" cy="60" r="27" fill="url(#planet)"/>
+
+  <!-- ── Planet atmospheric bands ── -->
+  <g clip-path="url(#planetClip)" fill="none" stroke="#000000" transform="rotate(-22 60 60)">
+    <!-- Band 1: high north -->
+    <path d="M 33 47 Q 60 44 87 47" stroke-width="1.8" opacity="0.13"/>
+    <!-- Band 2: mid north -->
+    <path d="M 34 53 Q 60 51 86 53" stroke-width="2.2" opacity="0.16"/>
+    <!-- Band 3: equator -->
+    <path d="M 33 60 Q 60 60 87 60" stroke-width="1.5" opacity="0.12"/>
+    <!-- Band 4: mid south -->
+    <path d="M 34 67 Q 60 69 86 67" stroke-width="2.2" opacity="0.16"/>
+    <!-- Band 5: high south -->
+    <path d="M 33 73 Q 60 76 87 73" stroke-width="1.8" opacity="0.13"/>
+  </g>
+
+  <!-- Thin atmosphere rim -->
+  <circle cx="60" cy="60" r="27"
+          fill="none" stroke="#9080f0" stroke-width="1.2" opacity="0.3"/>
+
+  <!-- ── Inner ring A, in front of planet ── -->
+  <ellipse cx="60" cy="60" rx="44" ry="11"
+           transform="rotate(-22 60 60)"
+           fill="none" stroke="url(#ringFront)" stroke-width="7.5"
+           clip-path="url(#bot)"/>
+
+  <!-- ── Outer ring B, in front of planet ── -->
+  <ellipse cx="60" cy="60" rx="56" ry="14"
+           transform="rotate(-22 60 60)"
+           fill="none" stroke="url(#ringFront)" stroke-width="5"
+           clip-path="url(#bot)"/>
+
+</svg>
