@@ -7,6 +7,7 @@ const effectiveDate = 'March 23, 2026';
 <BaseLayout
   title="Orbit Privacy Policy"
   description="Privacy Policy for Orbit, a local-first personal CRM."
+  mode="document"
 >
   <style>
     .wrap {
@@ -16,6 +17,9 @@ const effectiveDate = 'March 23, 2026';
 
     .card {
       padding: 34px;
+      background: rgba(250, 251, 255, 0.98);
+      border-color: rgba(15, 23, 42, 0.08);
+      box-shadow: 0 20px 50px rgba(15, 23, 42, 0.08);
     }
 
     h1,
@@ -36,7 +40,7 @@ const effectiveDate = 'March 23, 2026';
 
     p,
     li {
-      color: var(--muted);
+      color: #475569;
       font-size: 1rem;
     }
 
@@ -46,7 +50,47 @@ const effectiveDate = 'March 23, 2026';
 
     .meta {
       margin: 12px 0 1.5rem;
-      color: var(--accent-strong);
+      color: #4f46e5;
+    }
+
+    h1,
+    h2,
+    a {
+      color: #0f172a;
+    }
+
+    :global(body.mode-document) {
+      color: #0f172a;
+      background: linear-gradient(180deg, #f5f7fb 0%, #eef2f8 100%);
+    }
+
+    :global(body.mode-document)::before,
+    :global(body.mode-document)::after {
+      display: none;
+    }
+
+    :global(body.mode-document .nav) {
+      background: rgba(255, 255, 255, 0.72);
+      border-color: rgba(15, 23, 42, 0.1);
+    }
+
+    :global(body.mode-document .nav a) {
+      color: #475569;
+    }
+
+    :global(body.mode-document .nav a:hover),
+    :global(body.mode-document .nav a:focus-visible) {
+      background: rgba(79, 70, 229, 0.08);
+      color: #0f172a;
+    }
+
+    :global(body.mode-document .brand),
+    :global(body.mode-document .footer-copy) {
+      color: #475569;
+    }
+
+    :global(body.mode-document .brand img) {
+      filter: none;
     }
 
     @media (max-width: 720px) {
