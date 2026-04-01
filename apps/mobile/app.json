@@ -1,0 +1,37 @@
+{
+  "expo": {
+    "name": "Orbit",
+    "slug": "orbit",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0e0e12"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.lasdw.orbit"
+    },
+    "android": {
+      "package": "com.lasdw.orbit",
+      "adaptiveIcon": {
+        "backgroundColor": "#0e0e12",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-sqlite",
+      "@react-native-community/datetimepicker"
+    ]
+  }
+}

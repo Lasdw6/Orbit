@@ -1,17 +1,19 @@
 {
   "name": "orbit",
   "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
   "scripts": {
-    "dev": "astro dev",
-    "build": "astro build",
-    "preview": "astro preview",
-    "check": "astro check"
+    "mobile": "npm run start --workspace=@orbit/mobile",
+    "mobile:android": "npm run android --workspace=@orbit/mobile",
+    "mobile:ios": "npm run ios --workspace=@orbit/mobile",
+    "web:dev": "npm run dev --workspace=@orbit/web",
+    "web:build": "npm run build --workspace=@orbit/web",
+    "web:preview": "npm run preview --workspace=@orbit/web"
   },
   "devDependencies": {
-    "@astrojs/check": "^0.9.8",
-    "astro": "^5.0.0",
-    "sharp": "^0.34.5",
-    "typescript": "~5.9.2"
-  },
-  "private": true
+    "sharp": "^0.34.5"
+  }
 }
